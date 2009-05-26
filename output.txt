@@ -1,0 +1,24 @@
+Results of doctest builder run on 2009-05-26 12:37:16
+=====================================================
+
+Document: openexr
+-----------------
+1 items passed all tests:
+  14 tests in default
+14 tests in 1 items.
+14 passed and 0 failed.
+Test passed.
+
+Document: imath
+---------------
+1 items passed all tests:
+  12 tests in default
+12 tests in 1 items.
+12 passed and 0 failed.
+Test passed.
+
+Doctest summary
+===============
+   26 tests
+    0 failures in tests
+    0 failures in setup code
