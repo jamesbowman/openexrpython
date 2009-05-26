@@ -11,10 +11,12 @@ setup(name='OpenEXR',
   url = 'http://excamera.com/articles/26/openexr.html',
   version='1.0',
   ext_modules=[ 
-  Extension('OpenEXR',
-            ['OpenEXR.cpp'],
-            include_dirs=['/usr/include/OpenEXR', '/usr/local/include/OpenEXR'],
-            library_dirs=['/usr/local/lib'],
-            libraries=['Iex', 'Half', 'Imath', 'IlmImf', 'z'],
-            extra_compile_args=['-g'])
-  ], py_modules=['Imath'],)
+    Extension('OpenEXR',
+              ['OpenEXR.cpp'],
+              include_dirs=['/usr/include/OpenEXR', '/usr/local/include/OpenEXR'],
+              library_dirs=['/usr/local/lib'],
+              libraries=['Iex', 'Half', 'Imath', 'IlmImf', 'z'],
+              extra_compile_args=['-g'])
+  ],
+  py_modules=['Imath']
+)

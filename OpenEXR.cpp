@@ -43,7 +43,7 @@ using namespace Imath;
 static PyObject *OpenEXR_error = NULL;
 static PyObject *pModuleImath;
 
-static PyObject *PyObject_StealAttrString(PyObject* o, char *name)
+static PyObject *PyObject_StealAttrString(PyObject* o, const char *name)
 {
     PyObject *r = PyObject_GetAttrString(o, name);
     Py_DECREF(r);
@@ -72,7 +72,7 @@ static PyObject *channel(PyObject *self, PyObject *args, PyObject *kw)
 
     char *cname;
     PyObject *pixel_type = NULL;
-    char *keywords[] = { "channel_name", "pixel_type", "scanLine1", "scanLine2", NULL };
+    char *keywords[] = { (char*)"channel_name", (char*)"pixel_type", (char*)"scanLine1", (char*)"scanLine2", NULL };
     if (!PyArg_ParseTupleAndKeywords(args, kw, "s|Oii", keywords, &cname, &pixel_type, &miny, &maxy))
         return NULL;
 
@@ -675,7 +675,7 @@ extern "C" void initOpenEXR()
     /* initialize module variables/constants */
 
 #if PYTHON_API_VERSION >= 1007
-    OpenEXR_error = PyErr_NewException("OpenEXR.error", NULL, NULL);
+    OpenEXR_error = PyErr_NewException((char*)"OpenEXR.error", NULL, NULL);
 #else
     OpenEXR_error = Py_BuildValue("s", "OpenEXR.error");
 #endif
