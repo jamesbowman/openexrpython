@@ -20,23 +20,24 @@ Available Types
 
    The following data items and methods are supported:
 
-   .. method:: InputFile.header() -> int
+   .. method:: InputFile.header() -> dict
 
       Return the header of the open file. The header is a dictionary as described below.
 
-   .. index:: scan-line
+   .. index:: scan-line, format, string, pixel_type
 
    .. method:: channel(cname[, pixel_type[, scanLine1[, scanLine2]]]) -> string
 
        Read a channel from the OpenEXR image. *cname* is the name
        of the channel in the image, for example "R".
-       This method reads the
+       This method returns
        channel data in the format specified by *pixel_type* (see
-       :class:`Imath.PixelType`), or the format of the data specified in the image itself by default.
-       If *scanLine1* and *scanLine2* are not supplied, then the method reads the
-       entire image. Note that this method returns the channel as a
-       Python string: the caller must then convert it to the appropriate
-       format as necessary.
+       :class:`Imath.PixelType`), or the channel's format specified
+       in the image itself by default.
+       If *scanLine1* and *scanLine2* are not supplied, then the
+       method reads the entire image. Note that this method returns
+       the channel data as a Python string: the caller must then convert
+       it to the appropriate format as necessary.
 
    .. index:: destructor, convenience, exit
 

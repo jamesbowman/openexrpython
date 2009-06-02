@@ -1,4 +1,4 @@
-Results of doctest builder run on 2009-05-26 12:37:16
+Results of doctest builder run on 2009-05-26 17:22:02
 =====================================================
 
 Document: openexr
