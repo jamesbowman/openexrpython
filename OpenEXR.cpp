@@ -187,12 +187,10 @@ static PyObject *dict_from_header(Header h)
             PyObject *pt[2];
             pt[0] = PyObject_CallObject(pPointFunc, ptargs[0]);
             pt[1] = PyObject_CallObject(pPointFunc, ptargs[1]);
-            PyObject *boxArgs = Py_BuildValue("OO", pt[0], pt[1]);
+            PyObject *boxArgs = Py_BuildValue("NN", pt[0], pt[1]);
 
             ob = PyObject_CallObject(pBoxFunc, boxArgs);
             Py_DECREF(boxArgs);
-            Py_DECREF(pt[0]);
-            Py_DECREF(pt[1]);
             Py_DECREF(ptargs[0]);
             Py_DECREF(ptargs[1]);
         } else if (const PreviewImageAttribute *pia = dynamic_cast <const PreviewImageAttribute *> (a)) {
@@ -215,13 +213,12 @@ static PyObject *dict_from_header(Header h)
             for (ChannelList::ConstIterator j = cl.begin(); j != cl.end(); ++j) {
                 PyObject *ptarg = Py_BuildValue("(i)", j.channel().type);
                 PyObject *pt = PyObject_CallObject(pPTFunc, ptarg);
-                PyObject *chanarg = Py_BuildValue("Oii",
+                PyObject *chanarg = Py_BuildValue("Nii",
                     pt,
                     j.channel().xSampling,
                     j.channel().ySampling);
                 PyObject *C = PyObject_CallObject(pChanFunc, chanarg);
                 PyDict_SetItemString(CS, j.name(), C);
-                Py_DECREF(pt);
                 Py_DECREF(C);
                 Py_DECREF(ptarg);
                 Py_DECREF(chanarg);
@@ -338,7 +335,7 @@ PyObject *makeInputFile(PyObject *self, PyObject *args)
     InputFileC *object;
     char *filename;
 
-    if (!PyArg_ParseTuple(args, "s", &filename))
+    if (!PyArg_ParseTuple(args, "s:InputFile", &filename))
        return NULL;
 
     object = PyObject_NEW(InputFileC, &InputFile_Type);
@@ -349,6 +346,7 @@ PyObject *makeInputFile(PyObject *self, PyObject *args)
     }
     catch (const std::exception &e)
     {
+       Py_DECREF(object);
        PyErr_SetString(PyExc_IOError, e.what());
        return NULL;
     }
@@ -375,8 +373,9 @@ static PyObject *outwrite(PyObject *self, PyObject *args)
     Box2i dw = file->header().dataWindow();
     int width = dw.max.x - dw.min.x + 1;
     int height = dw.max.y - dw.min.y + 1;
-    PyObject *pixeldata = PyTuple_GetItem(args, 0);
-    if (!PyArg_ParseTuple(args, "O|i", &pixeldata, &height))
+	PyObject *pixeldata;
+	
+    if (!PyArg_ParseTuple(args, "O!|i:writePixels", &PyDict_Type, &pixeldata, &height))
        return NULL;
 
     FrameBuffer frameBuffer;
@@ -524,7 +523,7 @@ PyObject *makeOutputFile(PyObject *self, PyObject *args)
     char *filename;
     PyObject *header_dict;
 
-    if (!PyArg_ParseTuple(args, "sO", &filename, &header_dict))
+    if (!PyArg_ParseTuple(args, "sO!:OutputFile", &filename, &PyDict_Type, &header_dict))
        return NULL;
 
     OutputFileC *object = PyObject_NEW(OutputFileC, &OutputFile_Type);
@@ -622,7 +621,7 @@ PyObject *makeOutputFile(PyObject *self, PyObject *args)
 PyObject *makeHeader(PyObject *self, PyObject *args)
 {
     int w, h;
-    if (!PyArg_ParseTuple(args, "ii", &w, &h))
+    if (!PyArg_ParseTuple(args, "ii:Header", &w, &h))
       return NULL;
     Header header(w, h);
     header.channels().insert("R", Channel(FLOAT));
@@ -646,7 +645,7 @@ isOpenExrFile (const char fileName[])
 PyObject *_isOpenExrFile(PyObject *self, PyObject *args)
 {
     char *filename;
-    if (!PyArg_ParseTuple(args, "s", &filename))
+    if (!PyArg_ParseTuple(args, "s:isOpenExrFile", &filename))
         return NULL;
     return PyBool_FromLong(isOpenExrFile(filename));
 }
@@ -663,25 +662,26 @@ static PyMethodDef methods[] = {
 
 extern "C" void initOpenEXR()
 {
-    PyObject *m, *d;
+    PyObject *m, *d, *item;
 
     Imf::staticInitialize();
 
     m = Py_InitModule("OpenEXR", methods);
     d = PyModule_GetDict(m);
 
-    pModuleImath = PyImport_Import(PyString_FromString("Imath"));
+    pModuleImath = PyImport_Import(item= PyString_FromString("Imath")); Py_DECREF(item);
 
     /* initialize module variables/constants */
 
 #if PYTHON_API_VERSION >= 1007
     OpenEXR_error = PyErr_NewException((char*)"OpenEXR.error", NULL, NULL);
 #else
-    OpenEXR_error = Py_BuildValue("s", "OpenEXR.error");
+    OpenEXR_error = PyString_FromString("OpenEXR.error");
 #endif
     PyDict_SetItemString(d, "error", OpenEXR_error);
+    Py_DECREF(OpenEXR_error);
 
-    PyDict_SetItemString(d, "UINT", PyLong_FromLong(UINT));
-    PyDict_SetItemString(d, "HALF", PyLong_FromLong(HALF));
-    PyDict_SetItemString(d, "FLOAT", PyLong_FromLong(FLOAT));
+    PyDict_SetItemString(d, "UINT", item= PyLong_FromLong(UINT)); Py_DECREF(item);
+    PyDict_SetItemString(d, "HALF", item= PyLong_FromLong(HALF)); Py_DECREF(item);
+    PyDict_SetItemString(d, "FLOAT", item= PyLong_FromLong(FLOAT)); Py_DECREF(item);
 }
