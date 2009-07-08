@@ -9,7 +9,8 @@ setup(name='OpenEXR',
   author = 'James Bowman',
   author_email = 'jamesb@excamera.com',
   url = 'http://excamera.com/articles/26/openexr.html',
-  version='1.0',
+  version='1.0.1',
+  data_files=['test-exr.py'],
   ext_modules=[ 
     Extension('OpenEXR',
               ['OpenEXR.cpp'],
@@ -18,5 +19,6 @@ setup(name='OpenEXR',
               libraries=['Iex', 'Half', 'Imath', 'IlmImf', 'z'],
               extra_compile_args=['-g'])
   ],
-  py_modules=['Imath']
+  py_modules=['Imath'],
+  scripts=['test-exr.py']
 )

@@ -1,8 +1,9 @@
 import unittest
-import Imath
-import OpenEXR
 import random
 import array
+
+import Imath
+import OpenEXR
 
 class TestDirected(unittest.TestCase):
 
