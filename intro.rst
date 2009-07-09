@@ -9,7 +9,7 @@ Its main innovation is
 support for high dynamic range; it supports floating point pixels.
 
 This module provides Python bindings for the OpenEXR
-`C++ libraries <http://www.openexr.com/ReadingAndWritingImageFiles-1.2.x.pdf>`_.
+`C++ libraries <http://www.openexr.com/ReadingAndWritingImageFiles.pdf>`_.
 They allow you to read and write OpenEXR files from Python.
 
 Note that this module only loads and stores images. It does not do

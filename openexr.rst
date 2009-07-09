@@ -48,6 +48,8 @@ Available Types
        object's destructor calls this method, so any open files are
        automatically closed at program exit.
 
+   .. index:: complete
+
    .. method:: isComplete()
 
        isComplete() returns True if all pixels in the data window are
@@ -98,6 +100,9 @@ Available Types
 
 Available Functions
 -------------------
+
+.. index:: valid
+
 .. function:: isOpenExrFile(filename) -> bool
 
    Returns True if the *filename* exists, is readable, and contains a valid EXR image.
@@ -111,6 +116,8 @@ Available Functions
       False
       >>> print OpenEXR.isOpenExrFile("GoldenGate.exr")
       True
+   
+   Note that a file may may valid, but not complete.  To check if a file is complete, use :meth:`InputFile.isComplete`.
 
 .. index:: convenience
 
