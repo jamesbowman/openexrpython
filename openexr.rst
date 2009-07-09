@@ -48,6 +48,12 @@ Available Types
        object's destructor calls this method, so any open files are
        automatically closed at program exit.
 
+   .. method:: isComplete()
+
+       isComplete() returns True if all pixels in the data window are
+       present in the input file, or False if any pixels are missing.
+       (Another program may still be busy writing the file, or file
+       writing may have been aborted prematurely.)
 
 .. class:: OutputFile(filename, header)
 

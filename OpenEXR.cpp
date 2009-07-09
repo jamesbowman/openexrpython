@@ -264,11 +264,18 @@ static PyObject *inheader(PyObject *self, PyObject *args)
     return dict_from_header(file->header());
 }
 
+static PyObject *isComplete(PyObject *self, PyObject *args)
+{
+    InputFile *file = &((InputFileC *)self)->i;
+    return PyBool_FromLong(file->isComplete());
+}
+
 /* Method table */
 static PyMethodDef InputFile_methods[] = {
   {"header", inheader, METH_VARARGS},
   {"channel", (PyCFunction)channel, METH_KEYWORDS},
   {"close", inclose, METH_VARARGS},
+  {"isComplete", isComplete, METH_VARARGS},
   {NULL, NULL},
 };
 
