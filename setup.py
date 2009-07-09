@@ -9,7 +9,7 @@ setup(name='OpenEXR',
   author = 'James Bowman',
   author_email = 'jamesb@excamera.com',
   url = 'http://excamera.com/articles/26/openexr.html',
-  version='1.0.1',
+  version='1.0.2',
   data_files=['test-exr.py'],
   ext_modules=[ 
     Extension('OpenEXR',
@@ -20,5 +20,5 @@ setup(name='OpenEXR',
               extra_compile_args=['-g'])
   ],
   py_modules=['Imath'],
-  scripts=['test-exr.py']
+  # scripts=['test-exr.py']
 )

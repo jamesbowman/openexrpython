@@ -306,7 +306,7 @@ InputFile_Repr(PyObject *self)
 static PyTypeObject InputFile_Type = {
     PyObject_HEAD_INIT(&PyType_Type)
     0,
-    "InputFile",
+    "OpenEXR.InputFile",
     sizeof(InputFileC),
     0,
     (destructor)InputFile_dealloc,
@@ -327,7 +327,7 @@ static PyTypeObject InputFile_Type = {
     
     0,
     
-    Py_TPFLAGS_CHECKTYPES,
+    Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE,
 
     0,
     0,
@@ -337,15 +337,14 @@ static PyTypeObject InputFile_Type = {
     /* the rest are NULLs */
 };
 
-PyObject *makeInputFile(PyObject *self, PyObject *args)
+int makeInputFile(PyObject *self, PyObject *args, PyObject *kwds)
 {
-    InputFileC *object;
+    InputFileC *object = ((InputFileC *)self);
     char *filename;
 
     if (!PyArg_ParseTuple(args, "s:InputFile", &filename))
-       return NULL;
+       return -1;
 
-    object = PyObject_NEW(InputFileC, &InputFile_Type);
     object->is_opened = 1;
     try
     {
@@ -358,7 +357,7 @@ PyObject *makeInputFile(PyObject *self, PyObject *args)
        return NULL;
     }
 
-    return (PyObject *)object;
+    return 0;
 }
 
 
@@ -494,7 +493,7 @@ OutputFile_Repr(PyObject *self)
 static PyTypeObject OutputFile_Type = {
     PyObject_HEAD_INIT(&PyType_Type)
     0,
-    "OutputFile",
+    "OpenEXR.OutputFile",
     sizeof(OutputFileC),
     0,
     (destructor)OutputFile_dealloc,
@@ -515,7 +514,7 @@ static PyTypeObject OutputFile_Type = {
     
     0,
     
-    Py_TPFLAGS_CHECKTYPES,
+    Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE,
 
     0,
     0,
@@ -525,15 +524,15 @@ static PyTypeObject OutputFile_Type = {
     /* the rest are NULLs */
 };
 
-PyObject *makeOutputFile(PyObject *self, PyObject *args)
+int makeOutputFile(PyObject *self, PyObject *args, PyObject *kwds)
 {
     char *filename;
     PyObject *header_dict;
 
     if (!PyArg_ParseTuple(args, "sO!:OutputFile", &filename, &PyDict_Type, &header_dict))
-       return NULL;
+       return -1;
 
-    OutputFileC *object = PyObject_NEW(OutputFileC, &OutputFile_Type);
+    OutputFileC *object = (OutputFileC *)self;
     object->is_opened = 1;
 
     Header header(64, 64);
@@ -618,9 +617,9 @@ PyObject *makeOutputFile(PyObject *self, PyObject *args)
     catch (const std::exception &e)
     {
        PyErr_SetString(PyExc_IOError, e.what());
-       return NULL;
+       return -1;
     }
-    return (PyObject *)object;
+    return 0;
 }
 
 ////////////////////////////////////////////////////////////////////////
@@ -660,11 +659,9 @@ PyObject *_isOpenExrFile(PyObject *self, PyObject *args)
 ////////////////////////////////////////////////////////////////////////
 
 static PyMethodDef methods[] = {
-  {"InputFile", makeInputFile, METH_VARARGS},
-  {"OutputFile", makeOutputFile, METH_VARARGS},
-  {"Header", makeHeader, METH_VARARGS},
-  {"isOpenExrFile", _isOpenExrFile, METH_VARARGS},
-  {NULL, NULL},
+    {"Header", makeHeader, METH_VARARGS},
+    {"isOpenExrFile", _isOpenExrFile, METH_VARARGS},
+    {NULL, NULL},
 };
 
 extern "C" void initOpenEXR()
@@ -679,6 +676,16 @@ extern "C" void initOpenEXR()
     pModuleImath = PyImport_Import(item= PyString_FromString("Imath")); Py_DECREF(item);
 
     /* initialize module variables/constants */
+    InputFile_Type.tp_new = PyType_GenericNew;
+    InputFile_Type.tp_init = makeInputFile;
+    OutputFile_Type.tp_new = PyType_GenericNew;
+    OutputFile_Type.tp_init = makeOutputFile;
+    if (PyType_Ready(&InputFile_Type) != 0)
+        return;
+    if (PyType_Ready(&OutputFile_Type) != 0)
+        return;
+    PyModule_AddObject(m, "InputFile", (PyObject *)&InputFile_Type);
+    PyModule_AddObject(m, "OutputFile", (PyObject *)&OutputFile_Type);
 
 #if PYTHON_API_VERSION >= 1007
     OpenEXR_error = PyErr_NewException((char*)"OpenEXR.error", NULL, NULL);
