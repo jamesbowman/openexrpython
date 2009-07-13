@@ -9,7 +9,7 @@ Available Types
 
 .. class:: InputFile
 
-   A :class:`InputFile` object is used to read an EXR file.
+   The :class:`InputFile` object is used to read an EXR file.
 
    .. doctest::
       :options: -ELLIPSIS, +NORMALIZE_WHITESPACE
@@ -60,8 +60,8 @@ Available Types
 .. class:: OutputFile(filename, header)
 
    Creates the EXR file *filename*, with given *header*.  *header*
-   contains the image's properties and is a dict created by 
-   :func:`Header`.
+   contains the image's properties represented as a dictionary - for example the one created by 
+   the convenience function :func:`Header`.
 
    .. doctest::
 
