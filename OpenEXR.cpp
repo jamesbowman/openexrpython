@@ -148,6 +148,103 @@ static PyObject *channel(PyObject *self, PyObject *args, PyObject *kw)
     return r;
 }
 
+static PyObject *channels(PyObject *self, PyObject *args, PyObject *kw)
+{
+    InputFile *file = &((InputFileC *)self)->i;
+
+    Box2i dw = file->header().dataWindow();
+    int miny, maxy;
+
+    miny = dw.min.y;
+    maxy = dw.max.y;
+
+    PyObject *clist;
+    PyObject *pixel_type = NULL;
+    char *keywords[] = { (char*)"channel_name", (char*)"pixel_type", (char*)"scanLine1", (char*)"scanLine2", NULL };
+    if (!PyArg_ParseTupleAndKeywords(args, kw, "O|Oii", keywords, &clist, &pixel_type, &miny, &maxy))
+        return NULL;
+
+    if (maxy < miny) {
+        PyErr_SetString(PyExc_TypeError, "scanLine1 must be <= scanLine2");
+        return NULL;
+    }
+    if (miny < dw.min.y) {
+        PyErr_SetString(PyExc_TypeError, "scanLine1 cannot be outside dataWindow");
+        return NULL;
+    }
+    if (maxy > dw.max.y) {
+        PyErr_SetString(PyExc_TypeError, "scanLine2 cannot be outside dataWindow");
+        return NULL;
+    }
+
+    ChannelList channels = file->header().channels();
+    FrameBuffer frameBuffer;
+
+    int width  = dw.max.x - dw.min.x + 1;
+    int height = maxy - miny + 1;
+
+
+    PyObject *retval = PyTuple_New(PyTuple_Size(clist));
+    for (int i = 0; i < PyTuple_Size(clist); i++) {
+      char *cname = PyString_AsString(PyTuple_GetItem(clist, i));
+      Channel *channelPtr = channels.findChannel(cname);
+      if (channelPtr == NULL) {
+          return PyErr_Format(PyExc_TypeError, "There is no channel '%s' in the image", cname);
+      }
+
+      Imf::PixelType pt;
+      if (pixel_type != NULL) {
+          pt = PixelType(PyLong_AsLong(PyObject_StealAttrString(pixel_type, "v")));
+      } else {
+          pt = channelPtr->type;
+      }
+
+      // Use pt to compute typeSize
+      size_t typeSize;
+      switch (pt) {
+      case HALF:
+          typeSize = 2;
+          break;
+
+      case FLOAT:
+      case UINT:
+          typeSize = 4;
+          break;
+
+      default:
+          PyErr_SetString(PyExc_TypeError, "Unknown type");
+          return NULL;
+      }
+
+      size_t xstride = typeSize;
+      size_t ystride = typeSize * width;
+
+      PyObject *r = PyString_FromStringAndSize(NULL, typeSize * width * height);
+      PyTuple_SetItem(retval, i, r);
+
+      char *pixels = PyString_AsString(r);
+
+      try
+      {
+          frameBuffer.insert(cname,
+                             Slice(pt,
+                                   pixels - dw.min.x * xstride - miny * ystride,
+                                   xstride,
+                                   ystride,
+                                   1,1,
+                                   0.0));
+      }
+      catch (const std::exception &e)
+      {
+         PyErr_SetString(PyExc_IOError, e.what());
+         return NULL;
+      }
+    }
+    file->setFrameBuffer(frameBuffer);
+    file->readPixels(miny, maxy);
+
+    return retval;
+}
 static PyObject *inclose(PyObject *self, PyObject *args)
 {
   InputFileC *pc = ((InputFileC *)self);
@@ -274,6 +371,7 @@ static PyObject *isComplete(PyObject *self, PyObject *args)
 static PyMethodDef InputFile_methods[] = {
   {"header", inheader, METH_VARARGS},
   {"channel", (PyCFunction)channel, METH_KEYWORDS},
+  {"channels", (PyCFunction)channels, METH_KEYWORDS},
   {"close", inclose, METH_VARARGS},
   {"isComplete", isComplete, METH_VARARGS},
   {NULL, NULL},
@@ -345,17 +443,17 @@ int makeInputFile(PyObject *self, PyObject *args, PyObject *kwds)
     if (!PyArg_ParseTuple(args, "s:InputFile", &filename))
        return -1;
 
-    object->is_opened = 1;
     try
     {
         new(&object->i) InputFile(filename);
     }
     catch (const std::exception &e)
     {
-       Py_DECREF(object);
+       // Py_DECREF(object);
        PyErr_SetString(PyExc_IOError, e.what());
-       return NULL;
+       return -1;
     }
+    object->is_opened = 1;
 
     return 0;
 }
@@ -435,8 +533,8 @@ static PyObject *outwrite(PyObject *self, PyObject *args)
     }
     catch (const std::exception &e)
     {
-       PyErr_SetString(PyExc_IOError, e.what());
-       return NULL;
+        PyErr_SetString(PyExc_IOError, e.what());
+        return NULL;
     }
 
     Py_RETURN_NONE;
@@ -533,7 +631,6 @@ int makeOutputFile(PyObject *self, PyObject *args, PyObject *kwds)
        return -1;
 
     OutputFileC *object = (OutputFileC *)self;
-    object->is_opened = 1;
 
     Header header(64, 64);
 
@@ -616,9 +713,10 @@ int makeOutputFile(PyObject *self, PyObject *args, PyObject *kwds)
     }
     catch (const std::exception &e)
     {
-       PyErr_SetString(PyExc_IOError, e.what());
-       return -1;
+        PyErr_SetString(PyExc_IOError, e.what());
+        return -1;
     }
+    object->is_opened = 1;
     return 0;
 }
 

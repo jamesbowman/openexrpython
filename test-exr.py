@@ -39,8 +39,13 @@ class TestDirected(unittest.TestCase):
       oexr1 = self.load_red("out1.exr")
       self.assert_(oexr0 == oexr1)
 
+  def test_fail(self):
+    self.assertRaises(IOError, lambda: OpenEXR.InputFile("non-existent"))
+    hdr = OpenEXR.Header(640, 480)
+    self.assertRaises(IOError, lambda: OpenEXR.OutputFile("/forbidden", hdr))
+
   def test_one(self):
-    oexr = OpenEXR.InputFile("MtTamWest.exr")
+    oexr = OpenEXR.InputFile("samples/openexr-images-1.5.0/ScanLines/MtTamWest.exr")
     for k,v in sorted(oexr.header().items()):
       print "%20s: %s" % (k, v)
     first_header = oexr.header()
