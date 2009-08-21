@@ -183,10 +183,16 @@ static PyObject *channels(PyObject *self, PyObject *args, PyObject *kw)
     int width  = dw.max.x - dw.min.x + 1;
     int height = maxy - miny + 1;
 
+    PyObject *retval = PyList_New(0);
+    PyObject *iterator = PyObject_GetIter(clist);
+    if (iterator == NULL) {
+      PyErr_SetString(PyExc_TypeError, "Channel list must be iterable");
+      return NULL;
+    }
+    PyObject *item;
 
-    PyObject *retval = PyTuple_New(PyTuple_Size(clist));
-    for (int i = 0; i < PyTuple_Size(clist); i++) {
-      char *cname = PyString_AsString(PyTuple_GetItem(clist, i));
+    while ((item = PyIter_Next(iterator)) != NULL) {
+      char *cname = PyString_AsString(item);
       Channel *channelPtr = channels.findChannel(cname);
       if (channelPtr == NULL) {
           return PyErr_Format(PyExc_TypeError, "There is no channel '%s' in the image", cname);
@@ -220,7 +226,8 @@ static PyObject *channels(PyObject *self, PyObject *args, PyObject *kw)
       size_t ystride = typeSize * width;
 
       PyObject *r = PyString_FromStringAndSize(NULL, typeSize * width * height);
-      PyTuple_SetItem(retval, i, r);
+      PyList_Append(retval, r);
+      Py_DECREF(r);
 
       char *pixels = PyString_AsString(r);
 
@@ -239,7 +246,9 @@ static PyObject *channels(PyObject *self, PyObject *args, PyObject *kw)
          PyErr_SetString(PyExc_IOError, e.what());
          return NULL;
       }
+      Py_DECREF(item);
     }
+    Py_DECREF(iterator);
     file->setFrameBuffer(frameBuffer);
     file->readPixels(miny, maxy);
 

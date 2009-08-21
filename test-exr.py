@@ -44,6 +44,14 @@ class TestDirected(unittest.TestCase):
     hdr = OpenEXR.Header(640, 480)
     self.assertRaises(IOError, lambda: OpenEXR.OutputFile("/forbidden", hdr))
 
+  def test_channel_channels(self):
+    """ Check that the channel method and channels method return the same data """
+    oexr = OpenEXR.InputFile("samples/openexr-images-1.5.0/ScanLines/MtTamWest.exr")
+    cl = sorted(oexr.header()['channels'].keys())
+    a = [oexr.channel(c) for c in cl]
+    b = oexr.channels(cl)
+    self.assert_(a == b)
+
   def test_one(self):
     oexr = OpenEXR.InputFile("samples/openexr-images-1.5.0/ScanLines/MtTamWest.exr")
     for k,v in sorted(oexr.header().items()):
