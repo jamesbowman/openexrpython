@@ -20,7 +20,7 @@ class V2f(point):
     pass
 
 class Box:
-    """Box is a 2D box, specified by its two corners *min* and *max*."""
+    """Box is a 2D box, specified by its two corners *min* and *max*, both of which are :class:`point` """
     def __init__(self, min = None, max = None):
         self.min = min
         self.max = max

@@ -517,11 +517,11 @@ static PyObject *outwrite(PyObject *self, PyObject *args)
             int yStride = typeSize * width;
 
             if (!PyString_Check(channel_spec)) {
-                PyErr_SetString(PyExc_TypeError, "String required");
+                PyErr_Format(PyExc_TypeError, "Data for channel '%s' must be a string", i.name());
                 return NULL;
             }
             if (PyString_Size(channel_spec) != (height * yStride)) {
-                PyErr_SetString(PyExc_TypeError, "String wrong size");
+                PyErr_Format(PyExc_TypeError, "Data for channel '%s' should have size %d but got %d", i.name(), (height * yStride), PyString_Size(channel_spec));
                 return NULL;
             }
 

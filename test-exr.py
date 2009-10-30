@@ -39,6 +39,19 @@ class TestDirected(unittest.TestCase):
       oexr1 = self.load_red("out1.exr")
       self.assert_(oexr0 == oexr1)
 
+  def test_write_mchannels(self):
+    """
+    Write N arbitrarily named channels.
+    """
+    hdr = OpenEXR.Header(100, 100)
+    for chans in [ set("a"), set(['foo', 'bar']), set("abcdefghijklmnopqstuvwxyz") ]:
+      hdr['channels'] = dict([(nm, Imath.Channel(Imath.PixelType(Imath.PixelType.FLOAT))) for nm in chans])
+      x = OpenEXR.OutputFile("out0.exr", hdr)
+      data = array.array('f', [0] * (100 * 100)).tostring()
+      x.writePixels(dict([(nm, data) for nm in chans]))
+      x.close()
+      self.assertEqual(set(OpenEXR.InputFile('out0.exr').header()['channels']), chans)
+
   def test_fail(self):
     self.assertRaises(IOError, lambda: OpenEXR.InputFile("non-existent"))
     hdr = OpenEXR.Header(640, 480)
@@ -122,9 +135,9 @@ class TestDirected(unittest.TestCase):
       h = oexr.header()
 
 if __name__ == '__main__':
-  if 1:
+  if 0:
     unittest.main()
   else:
     suite = unittest.TestSuite()
-    suite.addTest(TestDirected('test_one'))
+    suite.addTest(TestDirected('test_write_mchannels'))
     unittest.TextTestRunner(verbosity=2).run(suite)

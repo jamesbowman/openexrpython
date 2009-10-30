@@ -39,6 +39,22 @@ Available Types
        the channel data as a Python string: the caller must then convert
        it to the appropriate format as necessary.
 
+   .. method:: channels(cname[, pixel_type[, scanLine1[, scanLine2]]]) -> string
+
+       Multiple-channel version of :meth:`channel`.
+       cname is an iterator which specifies channels, just as in the ``cname`` argument
+       of :meth:`channel`.
+
+       The return value is the 
+
+       channel data in the format specified by *pixel_type* (see
+       :class:`Imath.PixelType`), or the channel's format specified
+       in the image itself by default.
+       If *scanLine1* and *scanLine2* are not supplied, then the
+       method reads the entire image. Note that this method returns
+       the channel data as a Python string: the caller must then convert
+       it to the appropriate format as necessary.
+
    .. index:: destructor, convenience, exit
 
    .. method:: close()
