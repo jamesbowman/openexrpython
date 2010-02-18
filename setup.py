@@ -12,7 +12,6 @@ setup(name='OpenEXR',
   description = "Python bindings for ILM's OpenEXR image file format",
   long_description = "Python bindings for ILM's OpenEXR image file format",
   version='1.0.3',
-  data_files=['test-exr.py'],
   ext_modules=[ 
     Extension('OpenEXR',
               ['OpenEXR.cpp'],
@@ -22,5 +21,4 @@ setup(name='OpenEXR',
               extra_compile_args=['-g'])
   ],
   py_modules=['Imath'],
-  # scripts=['test-exr.py']
 )
