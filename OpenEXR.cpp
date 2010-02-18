@@ -279,6 +279,8 @@ static PyObject *dict_from_header(Header h)
     PyObject *pPIFunc = PyObject_GetAttrString(pModuleImath, "PreviewImage");
     PyObject *pLOFunc = PyObject_GetAttrString(pModuleImath, "LineOrder");
     PyObject *pCFunc = PyObject_GetAttrString(pModuleImath, "Compression");
+    PyObject *pCHFunc = PyObject_GetAttrString(pModuleImath, "chromaticity");
+    PyObject *pCHSFunc = PyObject_GetAttrString(pModuleImath, "Chromaticities");
 
     for (Header::ConstIterator i = h.begin(); i != h.end(); ++i) {
         const Attribute *a = &i.attribute();
@@ -342,6 +344,26 @@ static PyObject *dict_from_header(Header h)
         } else
         if (const StringAttribute *ta = dynamic_cast <const StringAttribute *> (a)) {
             ob = PyString_FromString(ta->value().c_str());
+        } else
+        if (const ChromaticitiesAttribute *ta = dynamic_cast<const ChromaticitiesAttribute *>(a)) {
+            const Chromaticities &ch(ta->value());
+            PyObject *rgbwargs[4];
+            rgbwargs[0] = Py_BuildValue("ff", ch.red[0], ch.red[1]);
+            rgbwargs[1] = Py_BuildValue("ff", ch.green[0], ch.green[1]);
+            rgbwargs[2] = Py_BuildValue("ff", ch.blue[0], ch.blue[1]);
+            rgbwargs[3] = Py_BuildValue("ff", ch.white[0], ch.white[1]);
+            PyObject *chromas[4];
+            chromas[0] = PyObject_CallObject(pCHFunc, rgbwargs[0]);
+            chromas[1] = PyObject_CallObject(pCHFunc, rgbwargs[1]);
+            chromas[2] = PyObject_CallObject(pCHFunc, rgbwargs[2]);
+            chromas[3] = PyObject_CallObject(pCHFunc, rgbwargs[3]);
+            PyObject *cargs = Py_BuildValue("NNNN", chromas[0], chromas[1], chromas[2], chromas[3]);
+            ob = PyObject_CallObject(pCHSFunc, cargs);
+            Py_DECREF(cargs);
+            Py_DECREF(rgbwargs[0]);
+            Py_DECREF(rgbwargs[1]);
+            Py_DECREF(rgbwargs[2]);
+            Py_DECREF(rgbwargs[3]);
         } else
         {
             // Unknown type for this object, so set its value to None.
@@ -649,6 +671,7 @@ int makeOutputFile(PyObject *self, PyObject *args, PyObject *kwds)
     PyObject *pLO = PyObject_GetAttrString(pModuleImath, "LineOrder");
     PyObject *pCOMP = PyObject_GetAttrString(pModuleImath, "Compression");
     PyObject *pPI = PyObject_GetAttrString(pModuleImath, "PreviewImage");
+    PyObject *pCH = PyObject_GetAttrString(pModuleImath, "Chromaticities");
 
     Py_ssize_t pos = 0;
     PyObject *key, *value;
@@ -690,6 +713,17 @@ int makeOutputFile(PyObject *self, PyObject *args, PyObject *kwds)
             Compression i = (Compression)PyInt_AsLong(PyObject_StealAttrString(value, "v"));
 
             header.insert(PyString_AsString(key), CompressionAttribute(i));
+        } else if (PyObject_IsInstance(value, pCH)) {
+            V2f red(PyFloat_AsDouble(PyObject_StealAttrString(PyObject_StealAttrString(value, "red"), "x")),
+                    PyFloat_AsDouble(PyObject_StealAttrString(PyObject_StealAttrString(value, "red"), "y")));
+            V2f green(PyFloat_AsDouble(PyObject_StealAttrString(PyObject_StealAttrString(value, "green"), "x")),
+                      PyFloat_AsDouble(PyObject_StealAttrString(PyObject_StealAttrString(value, "green"), "y")));
+            V2f blue(PyFloat_AsDouble(PyObject_StealAttrString(PyObject_StealAttrString(value, "blue"), "x")),
+                     PyFloat_AsDouble(PyObject_StealAttrString(PyObject_StealAttrString(value, "blue"), "y")));
+            V2f white(PyFloat_AsDouble(PyObject_StealAttrString(PyObject_StealAttrString(value, "white"), "x")),
+                      PyFloat_AsDouble(PyObject_StealAttrString(PyObject_StealAttrString(value, "white"), "y")));
+            Chromaticities c(red, green, blue, white);
+            header.insert(PyString_AsString(key), ChromaticitiesAttribute(c));
         } else if (PyDict_Check(value)) {
             PyObject *key2, *value2;
             Py_ssize_t pos2 = 0;

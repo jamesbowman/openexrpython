@@ -3,6 +3,14 @@
 ==================================================
 """
 
+class chromaticity:
+    """Store chromaticity coordinates in *x* and *y*."""
+    def __init__(self, x, y):
+        self.x = x
+        self.y = y
+    def __repr__(self):
+        return repr((self.x, self.y))
+
 class point:
     """Point is a 2D point, with members *x* and *y*."""
     def __init__(self, x, y):
@@ -34,6 +42,19 @@ class Box2i(Box):
 class Box2f(Box):
     """Box2f is a 2D box, specified by its two corners *min* and *max*."""
     pass
+
+class Chromaticities:
+    """
+    Chromaticities holds the set of chromaticity coordinates for *red*, *green*, *blue*, and *white*.
+    Each primary is a :class:`chromaticity`.
+    """
+    def __init__(self, red = None, green = None, blue = None, white = None):
+        self.red   = red
+        self.green = green
+        self.blue  = blue
+        self.white = white
+    def __repr__(self):
+        return repr(self.red) + " " + repr(self.green) + " " + repr(self.blue) + " " + repr(self.white)
 
 class LineOrder:
     """

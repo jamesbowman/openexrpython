@@ -67,8 +67,8 @@ class TestDirected(unittest.TestCase):
 
   def test_one(self):
     oexr = OpenEXR.InputFile("samples/openexr-images-1.5.0/ScanLines/MtTamWest.exr")
-    for k,v in sorted(oexr.header().items()):
-      print "%20s: %s" % (k, v)
+    #for k,v in sorted(oexr.header().items()):
+    #  print "%20s: %s" % (k, v)
     first_header = oexr.header()
 
     default_size = len(oexr.channel('R'))
@@ -135,7 +135,7 @@ class TestDirected(unittest.TestCase):
       h = oexr.header()
 
 if __name__ == '__main__':
-  if 0:
+  if 1:
     unittest.main()
   else:
     suite = unittest.TestSuite()
