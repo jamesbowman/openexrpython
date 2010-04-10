@@ -22,38 +22,62 @@ Available Types
 
    .. method:: InputFile.header() -> dict
 
-      Return the header of the open file. The header is a dictionary as described below.
+      Return the header of the open file. The header is a dictionary, see :ref:`headers`.
 
    .. index:: scan-line, format, string, pixel_type
 
    .. method:: channel(cname[, pixel_type[, scanLine1[, scanLine2]]]) -> string
 
-       Read a channel from the OpenEXR image. *cname* is the name
-       of the channel in the image, for example "R".
+       Read a channel from the OpenEXR image.
+
+       :param cname: the name of the channel in the image, for example "R".
+       :type cname: str
+       :param pixel_type: desired pixel type of returned channel data.  If not
+           specified, the channel's pixel data is returned in the format
+           specified in the header.
+       :type pixel_type: :class:`Imath.PixelType`
+       :param scanLine1: First scanline to return data for
+       :type scanLine1: int
+       :param scanLine2: Last scanline to return data for
+       :type scanLine2: int
+
        This method returns
-       channel data in the format specified by *pixel_type* (see
-       :class:`Imath.PixelType`), or the channel's format specified
-       in the image itself by default.
+       channel data in the format specified by *pixel_type*.
        If *scanLine1* and *scanLine2* are not supplied, then the
        method reads the entire image. Note that this method returns
        the channel data as a Python string: the caller must then convert
        it to the appropriate format as necessary.
 
-   .. method:: channels(cname[, pixel_type[, scanLine1[, scanLine2]]]) -> string
+   .. method:: channels(cnames[, pixel_type[, scanLine1[, scanLine2]]]) -> strings
 
        Multiple-channel version of :meth:`channel`.
-       cname is an iterator which specifies channels, just as in the ``cname`` argument
-       of :meth:`channel`.
 
-       The return value is the 
+       :param cnames: the names of the channel in the image, for example "R".
+       :type cnames: iterator yielding str
+       :param pixel_type: desired pixel type of returned channel data.  If not
+           specified, the channel's pixel data is returned in the format
+           specified in the header.
+       :type pixel_type: :class:`Imath.PixelType`
+       :param scanLine1: First scanline to return data for
+       :type scanLine1: int
+       :param scanLine2: Last scanline to return data for
+       :type scanLine2: int
 
-       channel data in the format specified by *pixel_type* (see
-       :class:`Imath.PixelType`), or the channel's format specified
-       in the image itself by default.
-       If *scanLine1* and *scanLine2* are not supplied, then the
-       method reads the entire image. Note that this method returns
-       the channel data as a Python string: the caller must then convert
-       it to the appropriate format as necessary.
+       ``cnames`` is an iterator which specifies channels just as in the ``cname`` argument
+       of :meth:`channel`:
+
+       .. doctest::
+          :options: -ELLIPSIS, +NORMALIZE_WHITESPACE
+
+          >>> import OpenEXR
+          >>> golden = OpenEXR.InputFile("GoldenGate.exr")
+          >>> (r, g, b) = golden.channels("RGB")
+          >>> print len(r), len(g), len(b)
+          2170640 2170640 2170640
+
+       When reading multi-channel images, this method is significantly
+       faster than reading single channels using calls to
+       :meth:`channel`.
 
    .. index:: destructor, convenience, exit
 
@@ -282,3 +306,9 @@ many of the classes for attribute types.
       ::
 
          header['Compression'] = Imath.Compression(Imath.Compression.PIZ_COMPRESSION)
+
+   :class:`Imath.Chromaticities`
+
+      Specifies (x, y) chromaticities for red, green, blue and white components::
+
+         header['chromaticities'] = Imath.Chromaticities(Imath.chromaticity(0,0))

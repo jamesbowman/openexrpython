@@ -11,7 +11,7 @@ setup(name='OpenEXR',
   url = 'http://excamera.com/articles/26/openexr.html',
   description = "Python bindings for ILM's OpenEXR image file format",
   long_description = "Python bindings for ILM's OpenEXR image file format",
-  version='1.0.3',
+  version='1.1.0',
   ext_modules=[ 
     Extension('OpenEXR',
               ['OpenEXR.cpp'],

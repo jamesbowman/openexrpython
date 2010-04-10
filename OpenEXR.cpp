@@ -72,7 +72,7 @@ static PyObject *channel(PyObject *self, PyObject *args, PyObject *kw)
 
     char *cname;
     PyObject *pixel_type = NULL;
-    char *keywords[] = { (char*)"channel_name", (char*)"pixel_type", (char*)"scanLine1", (char*)"scanLine2", NULL };
+    char *keywords[] = { (char*)"cname", (char*)"pixel_type", (char*)"scanLine1", (char*)"scanLine2", NULL };
     if (!PyArg_ParseTupleAndKeywords(args, kw, "s|Oii", keywords, &cname, &pixel_type, &miny, &maxy))
         return NULL;
 
@@ -160,7 +160,7 @@ static PyObject *channels(PyObject *self, PyObject *args, PyObject *kw)
 
     PyObject *clist;
     PyObject *pixel_type = NULL;
-    char *keywords[] = { (char*)"channel_name", (char*)"pixel_type", (char*)"scanLine1", (char*)"scanLine2", NULL };
+    char *keywords[] = { (char*)"cnames", (char*)"pixel_type", (char*)"scanLine1", (char*)"scanLine2", NULL };
     if (!PyArg_ParseTupleAndKeywords(args, kw, "O|Oii", keywords, &clist, &pixel_type, &miny, &maxy))
         return NULL;
 

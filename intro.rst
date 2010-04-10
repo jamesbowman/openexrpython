@@ -12,15 +12,79 @@ This module provides Python bindings for the OpenEXR
 `C++ libraries <http://www.openexr.com/ReadingAndWritingImageFiles.pdf>`_.
 They allow you to read and write OpenEXR files from Python.
 
-Note that this module only loads and stores images. It does not do
-any image manipulation operations. For that you might want to use
-one of:
+Note that this module only loads and stores image data. It does not
+do any image manipulation operations. For that you might want to
+use one of:
 
 .. index:: PIL, NumPy, vop, OpenCV, HALF, UINT, FLOAT
 
 * Python's standard `array <http://docs.python.org/library/array.html>`_ module.  You can access the raw data of FLOAT and UINT images.
+
+   .. doctest::
+      :options: -ELLIPSIS, +NORMALIZE_WHITESPACE
+
+      >>> import OpenEXR, Imath, array
+      >>> pt = Imath.PixelType(Imath.PixelType.FLOAT)
+      >>> redstr = OpenEXR.InputFile("GoldenGate.exr").channel('R', pt)
+      >>> red = array.array('f', redstr)
+      >>> print red[0]
+      0.0612182617188
+
 * The `Python Imaging Library <http://www.pythonware.com/library/pil/handbook/index.htm>`_. This library supports a single FLOAT channel image format.
+
+   .. doctest::
+      :options: -ELLIPSIS, +NORMALIZE_WHITESPACE
+
+      >>> import OpenEXR, Imath, Image
+      >>> pt = Imath.PixelType(Imath.PixelType.FLOAT)
+      >>> golden = OpenEXR.InputFile("GoldenGate.exr")
+      >>> dw = golden.header()['dataWindow']
+      >>> size = (dw.max.x - dw.min.x + 1, dw.max.y - dw.min.y + 1)
+      >>> redstr = golden.channel('R', pt)
+      >>> red = Image.fromstring("F", size, redstr)
+      >>> print red.getpixel((0, 0))
+      0.0612182617188
+
 * `Numeric or NumPy <http://numpy.scipy.org/>`_. It's just math, so you will have to write your own imaging operations. Supports UINT and FLOAT formats.
+
+   .. doctest::
+      :options: -ELLIPSIS, +NORMALIZE_WHITESPACE
+
+      >>> import OpenEXR, Imath, numpy
+      >>> pt = Imath.PixelType(Imath.PixelType.FLOAT)
+      >>> golden = OpenEXR.InputFile("GoldenGate.exr")
+      >>> dw = golden.header()['dataWindow']
+      >>> size = (dw.max.x - dw.min.x + 1, dw.max.y - dw.min.y + 1)
+      >>> redstr = golden.channel('R', pt)
+      >>> red = numpy.fromstring(redstr, dtype = numpy.float32)
+      >>> red.shape = size
+      >>> print red[0, 0]
+      0.0612182617188
+
 * Module `vop <http://www.excamera.com/articles/25/vop.html>`_. NumPy subset, but faster. Supports FLOAT and HALF. 
+
+   .. doctest::
+      :options: -ELLIPSIS, +NORMALIZE_WHITESPACE
+
+      >>> import OpenEXR, Imath, vop
+      >>> pt = Imath.PixelType(Imath.PixelType.FLOAT)
+      >>> redstr = OpenEXR.InputFile("GoldenGate.exr").channel('R', pt)
+      >>> red = vop.fromstring(redstr)
+      >>> print red[0]
+      0.0612182617188
+
 * `OpenCV <http://opencv.willowgarage.com/wiki/>`_.  Supports multi channel UINT and FLOAT formats.
 
+   .. doctest::
+      :options: -ELLIPSIS, +NORMALIZE_WHITESPACE
+
+      >>> import OpenEXR, Imath, cv
+      >>> pt = Imath.PixelType(Imath.PixelType.FLOAT)
+      >>> golden = OpenEXR.InputFile("GoldenGate.exr")
+      >>> dw = golden.header()['dataWindow']
+      >>> size = (dw.max.x - dw.min.x + 1, dw.max.y - dw.min.y + 1)
+      >>> redstr = golden.channel('R', pt)
+      >>> red = cv.CreateMat(size[1], size[0], cv.CV_32FC1)
+      >>> cv.SetData(red, redstr)
+      >>> print red[0, 0]
+      0.0612182617188
