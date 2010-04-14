@@ -18,7 +18,7 @@ use one of:
 
 .. index:: PIL, NumPy, vop, OpenCV, HALF, UINT, FLOAT
 
-* Python's standard `array <http://docs.python.org/library/array.html>`_ module.  You can access the raw data of FLOAT and UINT images.
+* Python's standard `array <http://docs.python.org/library/array.html>`_ module.  You can access the raw data of FLOAT and UINT images as a 1D array.
 
    .. doctest::
       :options: -ELLIPSIS, +NORMALIZE_WHITESPACE
@@ -30,7 +30,7 @@ use one of:
       >>> print red[0]
       0.0612182617188
 
-* The `Python Imaging Library <http://www.pythonware.com/library/pil/handbook/index.htm>`_. This library supports a single FLOAT channel image format.
+* The `Python Imaging Library <http://www.pythonware.com/library/pil/handbook/index.htm>`_. This library supports a single FLOAT channel image format, as a 2D array.
 
    .. doctest::
       :options: -ELLIPSIS, +NORMALIZE_WHITESPACE
@@ -45,7 +45,7 @@ use one of:
       >>> print red.getpixel((0, 0))
       0.0612182617188
 
-* `Numeric or NumPy <http://numpy.scipy.org/>`_. It's just math, so you will have to write your own imaging operations. Supports UINT and FLOAT formats.
+* `Numeric or NumPy <http://numpy.scipy.org/>`_. It's just math, so you will have to write your own imaging operations. Supports UINT and FLOAT formats.  Supports 2D arrays.
 
    .. doctest::
       :options: -ELLIPSIS, +NORMALIZE_WHITESPACE
@@ -61,7 +61,7 @@ use one of:
       >>> print red[0, 0]
       0.0612182617188
 
-* Module `vop <http://www.excamera.com/articles/25/vop.html>`_. NumPy subset, but faster. Supports FLOAT and HALF. 
+* Module `vop <http://www.excamera.com/articles/25/vop.html>`_. NumPy subset, but faster. Supports FLOAT and HALF.  1D arrays only.
 
    .. doctest::
       :options: -ELLIPSIS, +NORMALIZE_WHITESPACE
@@ -73,7 +73,7 @@ use one of:
       >>> print red[0]
       0.0612182617188
 
-* `OpenCV <http://opencv.willowgarage.com/wiki/>`_.  Supports multi channel UINT and FLOAT formats.
+* `OpenCV <http://opencv.willowgarage.com/wiki/>`_.  Supports multi channel UINT and FLOAT formats.  Supports 2D arrays.
 
    .. doctest::
       :options: -ELLIPSIS, +NORMALIZE_WHITESPACE
