@@ -259,6 +259,12 @@ The module :mod:`Imath` provides many of the classes for attribute types.
 
          header['version'] = 1001
 
+   list of strings
+
+      ::
+
+         header['multiView'] = ['left', 'right']
+
    .. index::
       single: header; dict
 
