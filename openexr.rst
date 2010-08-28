@@ -195,9 +195,13 @@ EXR header values
    single: dictionary
 
 This module represents EXR headers as regular Python dictionaries.
-In this dictionary the keys are strings, and the values are such
-that OpenEXR can determine their type. The module :mod:`Imath` provides
-many of the classes for attribute types.
+Each header entries have a name - a string - and a value
+that may be one of several types, defined by the OpenEXR standard.
+
+The Python module translates these types to Python types when reading OpenEXR headers,
+and does the reverse translation when writing headers.
+
+The module :mod:`Imath` provides many of the classes for attribute types.
 
    .. doctest::
       :options: -ELLIPSIS, +NORMALIZE_WHITESPACE

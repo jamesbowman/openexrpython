@@ -11,6 +11,7 @@ typedef int Py_ssize_t;
 #include <ImfAttribute.h>
 #include <ImfBoxAttribute.h>
 #include <ImfChannelList.h>
+#include <ImfStandardAttributes.h>
 #include <ImfChannelListAttribute.h>
 #include <ImfChromaticitiesAttribute.h>
 #include <ImfCompressionAttribute.h>
@@ -35,6 +36,7 @@ typedef int Py_ssize_t;
 #include <iostream>
 #include <iomanip>
 #include <iostream>
+#include <vector>
 
 using namespace std;
 using namespace Imf;
@@ -364,9 +366,16 @@ static PyObject *dict_from_header(Header h)
             Py_DECREF(rgbwargs[1]);
             Py_DECREF(rgbwargs[2]);
             Py_DECREF(rgbwargs[3]);
-        } else
-        {
+#ifdef INCLUDED_IMF_STRINGVECTOR_ATTRIBUTE_H
+        } else if (const StringVectorAttribute *ta = dynamic_cast<const StringVectorAttribute *>(a)) {
+            StringVector sv = ta->value();
+            ob = PyList_New(sv.size());
+            for (size_t i = 0; i < sv.size(); i++)
+                PyList_SetItem(ob, i, PyString_FromString(sv[i].c_str()));
+#endif
+        } else {
             // Unknown type for this object, so set its value to None.
+            // printf("Baffled by type %s\n", a->typeName());
             ob = Py_None;
             Py_INCREF(ob);
         }
@@ -543,7 +552,7 @@ static PyObject *outwrite(PyObject *self, PyObject *args)
                 return NULL;
             }
             if (PyString_Size(channel_spec) != (height * yStride)) {
-                PyErr_Format(PyExc_TypeError, "Data for channel '%s' should have size %d but got %d", i.name(), (height * yStride), PyString_Size(channel_spec));
+                PyErr_Format(PyExc_TypeError, "Data for channel '%s' should have size %d but got %zu", i.name(), (height * yStride), PyString_Size(channel_spec));
                 return NULL;
             }
 
@@ -738,6 +747,13 @@ int makeOutputFile(PyObject *self, PyObject *args, PyObject *kwds)
                                                  PyLong_AsLong(PyObject_StealAttrString(value2, "xSampling")),
                                                  PyLong_AsLong(PyObject_StealAttrString(value2, "ySampling"))));
             }
+#ifdef INCLUDED_IMF_STRINGVECTOR_ATTRIBUTE_H
+        } else if (PyList_Check(value)) {
+            StringVector sv(PyList_Size(value));
+            for (size_t i = 0; i < sv.size(); i++)
+                sv[i] = PyString_AsString(PyList_GetItem(value, i));
+            header.insert(PyString_AsString(key), StringVectorAttribute(sv));
+#endif
         } else {
             printf("XXX - unknown attribute: %s\n", PyString_AsString(PyObject_Str(key)));
         }
@@ -839,4 +855,5 @@ extern "C" void initOpenEXR()
     PyDict_SetItemString(d, "UINT", item= PyLong_FromLong(UINT)); Py_DECREF(item);
     PyDict_SetItemString(d, "HALF", item= PyLong_FromLong(HALF)); Py_DECREF(item);
     PyDict_SetItemString(d, "FLOAT", item= PyLong_FromLong(FLOAT)); Py_DECREF(item);
+    PyDict_SetItemString(d, "__version__", item= PyString_FromString(VERSION)); Py_DECREF(item);
 }

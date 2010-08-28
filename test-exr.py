@@ -57,6 +57,14 @@ class TestDirected(unittest.TestCase):
     hdr = OpenEXR.Header(640, 480)
     self.assertRaises(IOError, lambda: OpenEXR.OutputFile("/forbidden", hdr))
 
+  def test_multiView(self):
+    h = OpenEXR.Header(640, 480)
+    for views in [[], ['single'], ['left', 'right'], list("abcdefghijklmnopqrstuvwxyz")]:
+        h['multiView'] = views
+        x = OpenEXR.OutputFile("out0.exr", h)
+        x.close()
+        self.assertEqual(OpenEXR.InputFile('out0.exr').header()['multiView'], views)
+
   def test_channel_channels(self):
     """ Check that the channel method and channels method return the same data """
     oexr = OpenEXR.InputFile("samples/openexr-images-1.5.0/ScanLines/MtTamWest.exr")
