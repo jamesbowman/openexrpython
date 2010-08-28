@@ -259,11 +259,18 @@ The module :mod:`Imath` provides many of the classes for attribute types.
 
          header['version'] = 1001
 
+   .. index:: multiView, stereo
+
    list of strings
+
+      .. versionadded:: 1.2
 
       ::
 
          header['multiView'] = ['left', 'right']
+      
+      This attribute type is used in multiView images, as described in http://www.openexr.com/MultiViewOpenEXR.pdf
+
 
    .. index::
       single: header; dict
