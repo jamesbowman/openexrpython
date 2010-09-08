@@ -279,8 +279,8 @@ The module :mod:`Imath` provides many of the classes for attribute types.
 
       A dict represents the image's channels. In the dict, the keys are the channel names, and the values are of class :class:`Imath.Channel`::
 
-         header['channels'] = { 'L' : Imath.Channel(PixelType(OpenEXR.HALF)),
-                                'Z' : Imath.Channel(PixelType(OpenEXR.FLOAT))}
+         header['channels'] = { 'L' : Imath.Channel(Imath.PixelType(OpenEXR.HALF)),
+                                'Z' : Imath.Channel(Imath.PixelType(OpenEXR.FLOAT))}
 
    :class:`Imath.Box2i`
 
