@@ -7,9 +7,12 @@
 Available Types
 ---------------
 
-.. class:: InputFile
+.. class:: InputFile(file)
 
    The :class:`InputFile` object is used to read an EXR file.
+   *file* can be a filename or any object that has a type:`file`
+   interface, such as a file opened for reading, a :mod:`StringIO`
+   object, or any other custom object that meets this interface.
 
    .. doctest::
       :options: -ELLIPSIS, +NORMALIZE_WHITESPACE
@@ -97,9 +100,13 @@ Available Types
        (Another program may still be busy writing the file, or file
        writing may have been aborted prematurely.)
 
-.. class:: OutputFile(filename, header)
+.. class:: OutputFile(file, header)
 
-   Creates the EXR file *filename*, with given *header*.  *header*
+   Creates the EXR file *filename*, with given *header*.
+   *file* can be a filename or any object that has a type:`file`
+   interface, such as a file opened for writing, a :mod:`StringIO`
+   object, or any other custom object that meets this interface.
+   *header*
    contains the image's properties represented as a dictionary - for example the one created by 
    the convenience function :func:`Header`.
 
