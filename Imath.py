@@ -3,21 +3,25 @@
 ==================================================
 """
 
-class chromaticity:
+class chromaticity(object):
     """Store chromaticity coordinates in *x* and *y*."""
     def __init__(self, x, y):
         self.x = x
         self.y = y
     def __repr__(self):
         return repr((self.x, self.y))
+    def __eq__(self, other):
+        return (self.x, self.y) == (other.x, other.y)
 
-class point:
+class point(object):
     """Point is a 2D point, with members *x* and *y*."""
     def __init__(self, x, y):
         self.x = x;
         self.y = y;
     def __repr__(self):
         return repr((self.x, self.y))
+    def __eq__(self, other):
+        return (self.x, self.y) == (other.x, other.y)
 
 class V2i(point):
     """V2i is a 2D point, with members *x* and *y*."""
@@ -34,6 +38,8 @@ class Box:
         self.max = max
     def __repr__(self):
         return repr(self.min) + " - " + repr(self.max)
+    def __eq__(self, other):
+        return (self.min, self.max) == (other.min, other.max)
 
 class Box2i(Box):
     """Box2i is a 2D box, specified by its two corners *min* and *max*."""
@@ -56,7 +62,11 @@ class Chromaticities:
     def __repr__(self):
         return repr(self.red) + " " + repr(self.green) + " " + repr(self.blue) + " " + repr(self.white)
 
-class LineOrder:
+class ComparableV(object):
+    def __cmp__(self, other):
+        return self.v - other.v
+
+class LineOrder(ComparableV):
     """
     .. index:: INCREASING_Y, DECREASING_Y, RANDOM_Y
 
@@ -79,7 +89,7 @@ class LineOrder:
     def __repr__(self):
         return ["INCREASING_Y", "DECREASING_Y", "RANDOM_Y"][self.v]
 
-class Compression:
+class Compression(ComparableV):
     """
     .. index:: NO_COMPRESSION, RLE_COMPRESSION, ZIPS_COMPRESSION, ZIP_COMPRESSION, PIZ_COMPRESSION, PXR24_COMPRESSION
 
@@ -109,7 +119,7 @@ class Compression:
     def __repr__(self):
         return [ "NO_COMPRESSION", "RLE_COMPRESSION", "ZIPS_COMPRESSION", "ZIP_COMPRESSION", "PIZ_COMPRESSION", "PXR24_COMPRESSION"][self.v]
 
-class PixelType:
+class PixelType(ComparableV):
     """
     .. index:: UINT, HALF, FLOAT
 
@@ -150,6 +160,8 @@ class Channel:
         self.ySampling = ySampling
     def __repr__(self):
         return repr(self.type) + " " + repr((self.xSampling, self.ySampling))
+    def __eq__(self, other):
+        return (self.type, self.xSampling, self.ySampling) == (other.type, other.xSampling, other.ySampling)
 
 class PreviewImage:
     """
