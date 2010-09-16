@@ -7,6 +7,8 @@ typedef int Py_ssize_t;
 #endif
 
 #include <ImathBox.h>
+#include <ImfIO.h>
+#include <Iex.h>
 #include <ImfArray.h>
 #include <ImfAttribute.h>
 #include <ImfBoxAttribute.h>
@@ -53,12 +55,146 @@ static PyObject *PyObject_StealAttrString(PyObject* o, const char *name)
 }
 
 ////////////////////////////////////////////////////////////////////////
+//    Istream and Ostream derivatives
+////////////////////////////////////////////////////////////////////////
+
+class C_IStream: public IStream
+{
+  public:
+    C_IStream (PyObject *fo):
+        IStream(""), _fo(fo) {}
+    virtual bool    read (char c[], int n);
+    virtual Int64   tellg ();
+    virtual void    seekg (Int64 pos);
+    virtual void    clear ();
+    virtual const char*     fileName() const;
+  private:
+    PyObject *_fo;
+};
+
+bool
+C_IStream::read (char c[], int n)
+{
+    PyObject *data = PyObject_CallMethod(_fo, (char*)"read", (char*)"(i)", n);
+    if (data != NULL && PyString_AsString(data) && PyString_Size(data) == (Py_ssize_t)n) {
+      memcpy(c, PyString_AsString(data), PyString_Size(data));
+      Py_DECREF(data);
+    } else {
+      throw Iex::InputExc("file read failed");
+    }
+    return 0;
+}
+
+const char* C_IStream::fileName() const
+{
+  return "xxx";
+}
+
+
+Int64
+C_IStream::tellg ()
+{
+    PyObject *rv = PyObject_CallMethod(_fo, (char*)"tell", NULL);
+    if (rv != NULL && PyNumber_Check(rv)) {
+      PyObject *lrv = PyNumber_Long(rv);
+      long long t = PyLong_AsLong(lrv);
+      Py_DECREF(lrv);
+      Py_DECREF(rv);
+      return (Int64)t;
+    } else {
+      throw Iex::InputExc("tell failed");
+    }
+}
+
+void
+C_IStream::seekg (Int64 pos)
+{
+    PyObject *data = PyObject_CallMethod(_fo, (char*)"seek", (char*)"(L)", pos);
+    if (data != NULL) {
+        Py_DECREF(data);
+    } else {
+      throw Iex::InputExc("seek failed");
+    }
+}
+
+void
+C_IStream::clear ()
+{
+}
+
+////////////////////////////////////////////////////////////////////////
+
+class C_OStream: public OStream
+{
+  public:
+    C_OStream (PyObject *fo): OStream(""), _fo(fo) {}
+    virtual void    write (const char *c, int n);
+    virtual Int64   tellp ();
+    virtual void    seekp (Int64 pos);
+    virtual void    clear ();
+    virtual const char*     fileName() const;
+  private:
+    PyObject *_fo;
+};
+
+
+void
+C_OStream::write (const char*c, int n)
+{
+    PyObject *data = PyObject_CallMethod(_fo, (char*)"write", (char*)"(s#)", c, n);
+    if (data != NULL) {
+      Py_DECREF(data);
+    } else {
+      throw Iex::InputExc("file write failed");
+    }
+}
+
+const char* C_OStream::fileName() const
+{
+  return "xxx";
+}
+
+
+Int64
+C_OStream::tellp ()
+{
+    PyObject *rv = PyObject_CallMethod(_fo, (char*)"tell", NULL);
+    if (rv != NULL && PyNumber_Check(rv)) {
+      PyObject *lrv = PyNumber_Long(rv);
+      long long t = PyLong_AsLong(lrv);
+      Py_DECREF(lrv);
+      Py_DECREF(rv);
+      return (Int64)t;
+    } else {
+      throw Iex::InputExc("tell failed");
+    }
+}
+
+void
+C_OStream::seekp (Int64 pos)
+{
+    PyObject *data = PyObject_CallMethod(_fo, (char*)"seek", (char*)"(L)", pos);
+    if (data != NULL) {
+        Py_DECREF(data);
+    } else {
+      throw Iex::InputExc("seek failed");
+    }
+}
+
+void
+C_OStream::clear ()
+{
+}
+
+////////////////////////////////////////////////////////////////////////
 //    InputFile
 ////////////////////////////////////////////////////////////////////////
 
 typedef struct {
     PyObject_HEAD
     InputFile i;
+    PyObject *fo;
+    C_IStream *istream;
     int is_opened;
 } InputFileC;
 
@@ -420,6 +556,9 @@ static PyMethodDef InputFile_methods[] = {
 static void
 InputFile_dealloc(PyObject *self)
 {
+    InputFileC *object = ((InputFileC *)self);
+    if (object->fo)
+        Py_DECREF(object->fo);
     Py_DECREF(inclose(self, NULL));
     PyObject_Del(self);
 }
@@ -478,14 +617,29 @@ static PyTypeObject InputFile_Type = {
 int makeInputFile(PyObject *self, PyObject *args, PyObject *kwds)
 {
     InputFileC *object = ((InputFileC *)self);
-    char *filename;
+    PyObject *fo;
+    char *filename = NULL;
 
-    if (!PyArg_ParseTuple(args, "s:InputFile", &filename))
+    if (PyArg_ParseTuple(args, "O:InputFile", &fo)) {
+      if (PyString_Check(fo)) {
+          filename = PyString_AsString(fo);
+          object->fo = NULL;
+          object->istream = NULL;
+      } else {
+          object->fo = fo;
+          Py_INCREF(fo);
+          object->istream = new C_IStream(fo);
+      }
+    } else {
        return -1;
+    }
 
     try
     {
-        new(&object->i) InputFile(filename);
+        if (filename != NULL)
+          new(&object->i) InputFile(filename);
+        else
+          new(&object->i) InputFile(*object->istream);
     }
     catch (const std::exception &e)
     {
@@ -506,6 +660,8 @@ int makeInputFile(PyObject *self, PyObject *args, PyObject *kwds)
 typedef struct {
     PyObject_HEAD
     OutputFile o;
+    C_OStream *ostream;
+    PyObject *fo;
     int is_opened;
 } OutputFileC;
 
@@ -517,7 +673,7 @@ static PyObject *outwrite(PyObject *self, PyObject *args)
     Box2i dw = file->header().dataWindow();
     int width = dw.max.x - dw.min.x + 1;
     int height = dw.max.y - dw.min.y + 1;
-	PyObject *pixeldata;
+    PyObject *pixeldata;
 	
     if (!PyArg_ParseTuple(args, "O!|i:writePixels", &PyDict_Type, &pixeldata, &height))
        return NULL;
@@ -608,6 +764,9 @@ static PyMethodDef OutputFile_methods[] = {
 static void
 OutputFile_dealloc(PyObject *self)
 {
+    OutputFileC *object = ((OutputFileC *)self);
+    if (object->fo)
+        Py_DECREF(object->fo);
     Py_DECREF(outclose(self, NULL));
     PyObject_Del(self);
 }
@@ -664,13 +823,26 @@ static PyTypeObject OutputFile_Type = {
 
 int makeOutputFile(PyObject *self, PyObject *args, PyObject *kwds)
 {
-    char *filename;
+    PyObject *fo;
     PyObject *header_dict;
 
-    if (!PyArg_ParseTuple(args, "sO!:OutputFile", &filename, &PyDict_Type, &header_dict))
-       return -1;
+    char *filename = NULL;
 
     OutputFileC *object = (OutputFileC *)self;
+
+    if (PyArg_ParseTuple(args, "OO!:OutputFile", &fo, &PyDict_Type, &header_dict)) {
+      if (PyString_Check(fo)) {
+          filename = PyString_AsString(fo);
+          object->fo = NULL;
+          object->ostream = NULL;
+      } else {
+          object->fo = fo;
+          Py_INCREF(fo);
+          object->ostream = new C_OStream(fo);
+      }
+    } else {
+       return -1;
+    }
 
     Header header(64, 64);
 
@@ -768,7 +940,10 @@ int makeOutputFile(PyObject *self, PyObject *args, PyObject *kwds)
 
     try
     {
-        new(&object->o) OutputFile(filename, header);
+        if (filename != NULL)
+          new(&object->o) OutputFile(filename, header);
+        else
+          new(&object->o) OutputFile(*object->ostream, header);
     }
     catch (const std::exception &e)
     {

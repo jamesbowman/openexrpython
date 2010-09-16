@@ -1,6 +1,7 @@
 import unittest
 import random
 import array
+import StringIO
 
 import Imath
 import OpenEXR
@@ -141,6 +142,17 @@ class TestDirected(unittest.TestCase):
         for i in range(1000):
             oexr = OpenEXR.InputFile("out.exr")
             h = oexr.header()
+
+    def test_fileobject(self):
+        f = StringIO.StringIO()
+        (w, h) = (640, 480)
+        data = array.array('f', [ 0 for x in range(w * h) ]).tostring()
+        hdr = OpenEXR.Header(w,h)
+        x = OpenEXR.OutputFile(f, hdr)
+        x.writePixels({'R': data, 'G': data, 'B': data})
+        x.close()
+        f.seek(0)
+        self.assertEqual(hdr, OpenEXR.InputFile(f).header())
 
 if __name__ == '__main__':
     if 1:
