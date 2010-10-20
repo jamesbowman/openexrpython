@@ -62,11 +62,15 @@ class Chromaticities:
     def __repr__(self):
         return repr(self.red) + " " + repr(self.green) + " " + repr(self.blue) + " " + repr(self.white)
 
-class ComparableV(object):
+class Enumerated(object):
+    def __init__(self, v):
+        self.v = v
+    def __repr__(self):
+        return self.names[self.v]
     def __cmp__(self, other):
         return self.v - other.v
 
-class LineOrder(ComparableV):
+class LineOrder(Enumerated):
     """
     .. index:: INCREASING_Y, DECREASING_Y, RANDOM_Y
 
@@ -84,12 +88,9 @@ class LineOrder(ComparableV):
     INCREASING_Y = 0
     DECREASING_Y = 1
     RANDOM_Y	 = 2
-    def __init__(self, v):
-        self.v = v
-    def __repr__(self):
-        return ["INCREASING_Y", "DECREASING_Y", "RANDOM_Y"][self.v]
+    names = ["INCREASING_Y", "DECREASING_Y", "RANDOM_Y"]
 
-class Compression(ComparableV):
+class Compression(Enumerated):
     """
     .. index:: NO_COMPRESSION, RLE_COMPRESSION, ZIPS_COMPRESSION, ZIP_COMPRESSION, PIZ_COMPRESSION, PXR24_COMPRESSION
 
@@ -113,13 +114,9 @@ class Compression(ComparableV):
     ZIP_COMPRESSION = 3
     PIZ_COMPRESSION = 4
     PXR24_COMPRESSION = 5
-    def __init__(self, v):
-        """l"""
-        self.v = v
-    def __repr__(self):
-        return [ "NO_COMPRESSION", "RLE_COMPRESSION", "ZIPS_COMPRESSION", "ZIP_COMPRESSION", "PIZ_COMPRESSION", "PXR24_COMPRESSION"][self.v]
+    names = [ "NO_COMPRESSION", "RLE_COMPRESSION", "ZIPS_COMPRESSION", "ZIP_COMPRESSION", "PIZ_COMPRESSION", "PXR24_COMPRESSION"]
 
-class PixelType(ComparableV):
+class PixelType(Enumerated):
     """
     .. index:: UINT, HALF, FLOAT
 
@@ -134,11 +131,7 @@ class PixelType(ComparableV):
     UINT  = 0
     HALF  = 1
     FLOAT = 2
-    def __init__(self, v):
-        self.v = v
-    def __repr__(self):
-        return ["UINT", "HALF", "FLOAT"][self.v]
-    
+    names = ["UINT", "HALF", "FLOAT"]
 
 class Channel:
     """
@@ -188,3 +181,23 @@ class PreviewImage:
         self.pixels = pixels
     def __repr__(self):
         return "<Imath.PreviewImage instance %dx%d>" % (self.width, self.height)
+
+class LevelMode(Enumerated):
+    ONE_LEVEL = 0
+    MIPMAP_LEVELS = 1
+    RIPMAP_LEVELS = 2
+    names = ["ONE_LEVEL", "MIPMAP_LEVELS", "RIPMAP_LEVELS"]
+
+class LevelRoundingMode(Enumerated):
+    ROUND_DOWN = 0
+    ROUND_UP = 1
+    names = ["ROUND_DOWN", "ROUND_UP"]
+
+class TileDescription:
+    def __init__(self, xs = 32, ys = 32, m = LevelMode(LevelMode.ONE_LEVEL), r =LevelRoundingMode(LevelRoundingMode.ROUND_DOWN)):
+        self.xSize = xs
+        self.ySize = ys
+        self.mode = m
+        self.roundingMode = r
+    def __repr__(self):
+        return "<Imath.TileDescription instance %dx%d %s %s>" % (self.xSize, self.ySize, repr(self.mode), repr(self.roundingMode))

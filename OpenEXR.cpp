@@ -403,6 +403,13 @@ static PyObject *inclose(PyObject *self, PyObject *args)
   Py_RETURN_NONE;
 }
 
+static PyObject *PyObject_Call1(PyObject *f, PyObject* a)
+{
+    PyObject *r = PyObject_CallObject(f, a);
+    Py_DECREF(a);
+    return r;
+}
+
 static PyObject *dict_from_header(Header h)
 {
     PyObject *object;
@@ -419,6 +426,9 @@ static PyObject *dict_from_header(Header h)
     PyObject *pCFunc = PyObject_GetAttrString(pModuleImath, "Compression");
     PyObject *pCHFunc = PyObject_GetAttrString(pModuleImath, "chromaticity");
     PyObject *pCHSFunc = PyObject_GetAttrString(pModuleImath, "Chromaticities");
+    PyObject *pLevelMode = PyObject_GetAttrString(pModuleImath, "LevelMode");
+    PyObject *pLevelRoundingMode = PyObject_GetAttrString(pModuleImath, "LevelRoundingMode");
+    PyObject *pTileDescription = PyObject_GetAttrString(pModuleImath, "TileDescription");
 
     for (Header::ConstIterator i = h.begin(); i != h.end(); ++i) {
         const Attribute *a = &i.attribute();
@@ -483,6 +493,12 @@ static PyObject *dict_from_header(Header h)
         if (const StringAttribute *ta = dynamic_cast <const StringAttribute *> (a)) {
             ob = PyString_FromString(ta->value().c_str());
         } else
+        if (const TileDescriptionAttribute *ta = dynamic_cast<const TileDescriptionAttribute *>(a)) {
+            const TileDescription td = ta->value();
+            PyObject *m = PyObject_Call1(pLevelMode, Py_BuildValue("(i)", td.mode));
+            PyObject *r = PyObject_Call1(pLevelRoundingMode, Py_BuildValue("(i)", td.roundingMode));
+            ob = PyObject_Call1(pTileDescription, Py_BuildValue("(iiNN)", td.xSize, td.ySize, m, r));
+        } else
         if (const ChromaticitiesAttribute *ta = dynamic_cast<const ChromaticitiesAttribute *>(a)) {
             const Chromaticities &ch(ta->value());
             PyObject *rgbwargs[4];
@@ -527,6 +543,9 @@ static PyObject *dict_from_header(Header h)
     Py_DECREF(pPIFunc);
     Py_DECREF(pLOFunc);
     Py_DECREF(pCFunc);
+    Py_DECREF(pLevelMode);
+    Py_DECREF(pLevelRoundingMode);
+    Py_DECREF(pTileDescription);
 
     return object;
 }
@@ -853,6 +872,7 @@ int makeOutputFile(PyObject *self, PyObject *args, PyObject *kwds)
     PyObject *pCOMP = PyObject_GetAttrString(pModuleImath, "Compression");
     PyObject *pPI = PyObject_GetAttrString(pModuleImath, "PreviewImage");
     PyObject *pCH = PyObject_GetAttrString(pModuleImath, "Chromaticities");
+    PyObject *pTD = PyObject_GetAttrString(pModuleImath, "TileDescription");
 
     Py_ssize_t pos = 0;
     PyObject *key, *value;
@@ -905,6 +925,13 @@ int makeOutputFile(PyObject *self, PyObject *args, PyObject *kwds)
                       PyFloat_AsDouble(PyObject_StealAttrString(PyObject_StealAttrString(value, "white"), "y")));
             Chromaticities c(red, green, blue, white);
             header.insert(PyString_AsString(key), ChromaticitiesAttribute(c));
+        } else if (PyObject_IsInstance(value, pTD)) {
+            TileDescription td(PyInt_AsLong(PyObject_StealAttrString(value, "xSize")),
+                               PyInt_AsLong(PyObject_StealAttrString(value, "ySize")),
+                               (Imf::LevelMode)PyInt_AsLong(PyObject_StealAttrString(PyObject_StealAttrString(value, "mode"), "v")),
+                               (Imf::LevelRoundingMode)PyInt_AsLong(PyObject_StealAttrString(PyObject_StealAttrString(value, "roundingMode"), "v"))
+                               );
+            header.insert(PyString_AsString(key), TileDescriptionAttribute(td));
         } else if (PyDict_Check(value)) {
             PyObject *key2, *value2;
             Py_ssize_t pos2 = 0;
@@ -988,11 +1015,24 @@ PyObject *_isOpenExrFile(PyObject *self, PyObject *args)
     return PyBool_FromLong(isOpenExrFile(filename));
 }
 
+#ifdef VERSION_HAS_ISTILED
+PyObject *_isTiledOpenExrFile(PyObject *self, PyObject *args)
+{
+    char *filename;
+    if (!PyArg_ParseTuple(args, "s:isTiledOpenExrFile", &filename))
+        return NULL;
+    return PyBool_FromLong(isTiledOpenExrFile(filename));
+}
+#endif
+
 ////////////////////////////////////////////////////////////////////////
 
 static PyMethodDef methods[] = {
     {"Header", makeHeader, METH_VARARGS},
     {"isOpenExrFile", _isOpenExrFile, METH_VARARGS},
+#ifdef VERSION_HAS_ISTILED
+    {"isTiledOpenExrFile", _isTiledOpenExrFile, METH_VARARGS},
+#endif
     {NULL, NULL},
 };
 
