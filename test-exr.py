@@ -17,6 +17,11 @@ class TestDirected(unittest.TestCase):
         oexr = OpenEXR.InputFile(filename)
         return oexr.channel('R')
 
+    def test_enumerants(self):
+        self.assertEqual(Imath.LevelMode("ONE_LEVEL"), Imath.LevelMode(Imath.LevelMode.ONE_LEVEL))
+        self.assertEqual(Imath.LevelMode("MIPMAP_LEVELS"), Imath.LevelMode(Imath.LevelMode.MIPMAP_LEVELS))
+        self.assertEqual(Imath.LevelMode("RIPMAP_LEVELS"), Imath.LevelMode(Imath.LevelMode.RIPMAP_LEVELS))
+
     def test_write_chunk(self):
         """ Write the pixels to two images, first as a single call,
         then as multiple calls.  Verify that the images are identical.

@@ -64,7 +64,10 @@ class Chromaticities:
 
 class Enumerated(object):
     def __init__(self, v):
-        self.v = v
+        if v in self.names:
+            self.v = eval("self." + v)
+        else:
+            self.v = v
     def __repr__(self):
         return self.names[self.v]
     def __cmp__(self, other):
