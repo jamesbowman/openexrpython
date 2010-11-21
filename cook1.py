@@ -1,8 +1,9 @@
 import OpenEXR
 import Imath
 import Image
+import sys
 
-file = OpenEXR.InputFile("Chunks.exr")
+file = OpenEXR.InputFile(sys.argv[1])
 pt = Imath.PixelType(Imath.PixelType.FLOAT)
 dw = file.header()['dataWindow']
 size = (dw.max.x - dw.min.x + 1, dw.max.y - dw.min.y + 1)
@@ -16,4 +17,4 @@ scale = 255 / (lighest - darkest)
 def normalize_0_255(v):
     return (v * scale) + darkest
 rgb8 = [im.point(normalize_0_255).convert("L") for im in rgbf]
-Image.merge("RGB", rgb8).save("foo.jpg")
+Image.merge("RGB", rgb8).save(sys.argv[2])
