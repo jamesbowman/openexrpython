@@ -21,6 +21,6 @@ def main(exrfile, jpgfile):
     Image.merge("RGB", rgb8).save(jpgfile)
 
 if __name__ == "__main__":
-    if len(sys.argv != 3)
+    if len(sys.argv) != 3:
         print "usage: exr2jpg <exrfile> <jpgfile>"
     main(sys.argv[1], sys.argv[2])

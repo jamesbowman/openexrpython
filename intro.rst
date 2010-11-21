@@ -1,5 +1,5 @@
-Introduction
-============
+Introduction and Cookbook
+=========================
 
 .. index:: ILM, Industrial Light & Magic, high dynamic range, floating point
 
@@ -14,7 +14,10 @@ They allow you to read and write OpenEXR files from Python.
 
 Note that this module only loads and stores image data. It does not
 do any image manipulation operations. For that you might want to
-use one of:
+use one of these imaging or math packages.
+
+Interfacing with other packages
+-------------------------------
 
 .. index:: PIL, NumPy, vop, OpenCV, HALF, UINT, FLOAT
 
@@ -88,3 +91,14 @@ use one of:
       >>> cv.SetData(red, redstr)
       >>> print red[0, 0]
       0.0612182617188
+
+Conversions
+===========
+
+OpenEXR to jpg
+--------------
+
+This is a simple command-line tool to turn an EXR file into a jpg file.  It finds the darkest and lightest pixels in the floating-point EXR image, then normalizes all image pixels to the range 0-255.
+
+.. literalinclude:: exr2jpg.py
+    :language: python

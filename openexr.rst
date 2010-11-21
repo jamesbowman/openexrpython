@@ -317,7 +317,7 @@ The module :mod:`Imath` provides many of the classes for attribute types.
 
    :class:`Imath.PreviewImage`
 
-      A preview image, specified by height, width, and a string of length 4*width*height. The pixels are in RGBA order.::
+      A preview image, specified by height, width, and a string of length 4*width*height. The pixels are in RGBA order::
 
          header['preview'] = Imath.PreviewImage(320,200,pixels)
 
