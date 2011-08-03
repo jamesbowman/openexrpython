@@ -54,6 +54,13 @@ static PyObject *PyObject_StealAttrString(PyObject* o, const char *name)
     return r;
 }
 
+static PyObject *PyObject_Call1(PyObject *f, PyObject* a)
+{
+    PyObject *r = PyObject_CallObject(f, a);
+    Py_DECREF(a);
+    return r;
+}
+
 ////////////////////////////////////////////////////////////////////////
 //    Istream and Ostream derivatives
 ////////////////////////////////////////////////////////////////////////
@@ -401,13 +408,6 @@ static PyObject *inclose(PyObject *self, PyObject *args)
     file->~InputFile();
   }
   Py_RETURN_NONE;
-}
-
-static PyObject *PyObject_Call1(PyObject *f, PyObject* a)
-{
-    PyObject *r = PyObject_CallObject(f, a);
-    Py_DECREF(a);
-    return r;
 }
 
 static PyObject *dict_from_header(Header h)
