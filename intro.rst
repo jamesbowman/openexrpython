@@ -64,6 +64,22 @@ Interfacing with other packages
       >>> print red[0, 0]
       0.0612182617188
 
+  As of version 1.6.0 NumPy supports HALF float conversion via its float16 type::
+
+    # Requires NumPy 1.6.0 +
+    import numpy
+    import OpenEXR
+    import Imath
+
+    pixels = numpy.array([numpy.float16((1.0/(640 * 480))*x) for x in range(640 * 480)]).tostring()
+    HEADER = OpenEXR.Header(640,480)
+    HEADER['channels'] = dict([(c, Imath.Channel(Imath.PixelType(Imath.PixelType.HALF))) for c in HEADER['channels'].keys()])
+    exr = OpenEXR.OutputFile("out.exr", HEADER)
+    exr.writePixels({'R': pixels, 'G': pixels, 'B': pixels})
+    exr.close()
+
+print OpenEXR.InputFile("out.exr").header()
+
 * Module `vop <http://www.excamera.com/articles/25/vop.html>`_. NumPy subset, but faster. Supports FLOAT and HALF.  1D arrays only.
 
    .. doctest::
@@ -102,3 +118,21 @@ This is a simple command-line tool to turn an EXR file into a jpg file.  It find
 
 .. literalinclude:: exr2jpg.py
     :language: python
+
+EXR to EXR
+----------
+
+If you just want to modify a header field, then this is one way::
+
+  import OpenEXR
+
+  infile = OpenEXR.InputFile("GoldenGate.exr")
+  h = infile.header()
+  channels = h['channels'].keys()
+  newchannels = dict(zip(channels, infile.channels(channels)))
+
+  h['comments'] = "A picture of some delicious pie"
+
+  out = OpenEXR.OutputFile("modified.exr", h)
+  out.writePixels(newchannels)
+
