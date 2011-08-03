@@ -64,21 +64,20 @@ Interfacing with other packages
       >>> print red[0, 0]
       0.0612182617188
 
-  As of version 1.6.0 NumPy supports HALF float conversion via its float16 type::
+  As of version 1.6.0 NumPy supports HALF float via its float16 type::
 
-    # Requires NumPy 1.6.0 +
-    import numpy
-    import OpenEXR
-    import Imath
+      import numpy
+      import OpenEXR
+      import Imath
 
-    pixels = numpy.array([numpy.float16((1.0/(640 * 480))*x) for x in range(640 * 480)]).tostring()
-    HEADER = OpenEXR.Header(640,480)
-    HEADER['channels'] = dict([(c, Imath.Channel(Imath.PixelType(Imath.PixelType.HALF))) for c in HEADER['channels'].keys()])
-    exr = OpenEXR.OutputFile("out.exr", HEADER)
-    exr.writePixels({'R': pixels, 'G': pixels, 'B': pixels})
-    exr.close()
-
-print OpenEXR.InputFile("out.exr").header()
+      pixels = numpy.random.rand(640, 480).astype(numpy.float16).tostring()
+      HEADER = OpenEXR.Header(640,480)
+      half_chan = Imath.Channel(Imath.PixelType(Imath.PixelType.HALF))
+      HEADER['channels'] = dict([(c, half_chan) for c in "RGB"])
+      exr = OpenEXR.OutputFile("out.exr", HEADER)
+      exr.writePixels({'R': pixels, 'G': pixels, 'B': pixels})
+      exr.close()
+      print OpenEXR.InputFile("out.exr").header()
 
 * Module `vop <http://www.excamera.com/articles/25/vop.html>`_. NumPy subset, but faster. Supports FLOAT and HALF.  1D arrays only.
 
@@ -110,6 +109,14 @@ print OpenEXR.InputFile("out.exr").header()
 
 Conversions
 ===========
+
+EXR to EXR
+----------
+
+To modify a header field, you can read the file, modify the header, then write a new file with the same data and the modified header:
+
+.. literalinclude:: demo2.py
+    :language: python
 
 OpenEXR to jpg
 --------------
