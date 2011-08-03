@@ -125,21 +125,3 @@ This is a simple command-line tool to turn an EXR file into a jpg file.  It find
 
 .. literalinclude:: exr2jpg.py
     :language: python
-
-EXR to EXR
-----------
-
-If you just want to modify a header field, then this is one way::
-
-  import OpenEXR
-
-  infile = OpenEXR.InputFile("GoldenGate.exr")
-  h = infile.header()
-  channels = h['channels'].keys()
-  newchannels = dict(zip(channels, infile.channels(channels)))
-
-  h['comments'] = "A picture of some delicious pie"
-
-  out = OpenEXR.OutputFile("modified.exr", h)
-  out.writePixels(newchannels)
-
