@@ -60,7 +60,7 @@ Interfacing with other packages
       >>> size = (dw.max.x - dw.min.x + 1, dw.max.y - dw.min.y + 1)
       >>> redstr = golden.channel('R', pt)
       >>> red = numpy.fromstring(redstr, dtype = numpy.float32)
-      >>> red.shape = size
+      >>> red.shape = (size[1], size[0]) # Numpy arrays are (row, col)
       >>> print red[0, 0]
       0.0612182617188
 
