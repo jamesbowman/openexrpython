@@ -242,6 +242,11 @@ static PyObject *channel(PyObject *self, PyObject *args, PyObject *kw)
 
     Imf::PixelType pt;
     if (pixel_type != NULL) {
+        if (PyObject_GetAttrString(pixel_type,"v") == NULL) {
+            return PyErr_Format(PyExc_TypeError, "Invalid PixelType object %s",
+                                    PyString_AsString(
+                                        PyObject_GetAttrString(PyObject_Type(pixel_type),"__name__")));
+        }
         pt = PixelType(PyLong_AsLong(PyObject_StealAttrString(pixel_type, "v")));
     } else {
         pt = channelPtr->type;

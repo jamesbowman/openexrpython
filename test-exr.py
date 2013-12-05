@@ -63,7 +63,12 @@ class TestDirected(unittest.TestCase):
         hdr = OpenEXR.Header(640, 480)
         self.assertRaises(IOError, lambda: OpenEXR.OutputFile("/forbidden", hdr))
 
-    def test_multiView(self):
+    def test_invalid_pt(self):
+        f = OpenEXR.InputFile("samples/openexr-images-1.7.0/ScanLines/MtTamWest.exr")
+        FLOAT = Imath.PixelType.FLOAT
+        self.assertRaises(TypeError, lambda: f.channel('R',FLOAT))
+        
+    def xtest_multiView(self):
         h = OpenEXR.Header(640, 480)
         for views in [[], ['single'], ['left', 'right'], list("abcdefghijklmnopqrstuvwxyz")]:
             h['multiView'] = views
@@ -73,14 +78,14 @@ class TestDirected(unittest.TestCase):
 
     def test_channel_channels(self):
         """ Check that the channel method and channels method return the same data """
-        oexr = OpenEXR.InputFile("samples/openexr-images-1.5.0/ScanLines/MtTamWest.exr")
+        oexr = OpenEXR.InputFile("samples/openexr-images-1.7.0/ScanLines/MtTamWest.exr")
         cl = sorted(oexr.header()['channels'].keys())
         a = [oexr.channel(c) for c in cl]
         b = oexr.channels(cl)
         self.assert_(a == b)
 
     def test_one(self):
-        oexr = OpenEXR.InputFile("samples/openexr-images-1.5.0/ScanLines/MtTamWest.exr")
+        oexr = OpenEXR.InputFile("samples/openexr-images-1.7.0/ScanLines/MtTamWest.exr")
         #for k,v in sorted(oexr.header().items()):
         #  print "%20s: %s" % (k, v)
         first_header = oexr.header()
