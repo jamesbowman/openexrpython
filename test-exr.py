@@ -64,7 +64,7 @@ class TestDirected(unittest.TestCase):
         self.assertRaises(IOError, lambda: OpenEXR.OutputFile("/forbidden", hdr))
 
     def test_invalid_pt(self):
-        f = OpenEXR.InputFile("samples/openexr-images-1.7.0/ScanLines/MtTamWest.exr")
+        f = OpenEXR.InputFile("GoldenGate.exr")
         FLOAT = Imath.PixelType.FLOAT
         self.assertRaises(TypeError, lambda: f.channel('R',FLOAT))
         
@@ -78,14 +78,14 @@ class TestDirected(unittest.TestCase):
 
     def test_channel_channels(self):
         """ Check that the channel method and channels method return the same data """
-        oexr = OpenEXR.InputFile("samples/openexr-images-1.7.0/ScanLines/MtTamWest.exr")
+        oexr = OpenEXR.InputFile("GoldenGate.exr")
         cl = sorted(oexr.header()['channels'].keys())
         a = [oexr.channel(c) for c in cl]
         b = oexr.channels(cl)
         self.assert_(a == b)
 
     def test_one(self):
-        oexr = OpenEXR.InputFile("samples/openexr-images-1.7.0/ScanLines/MtTamWest.exr")
+        oexr = OpenEXR.InputFile("GoldenGate.exr")
         #for k,v in sorted(oexr.header().items()):
         #  print "%20s: %s" % (k, v)
         first_header = oexr.header()
