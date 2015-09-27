@@ -6,7 +6,7 @@ from os import system
 
 from distutils.core import setup, Extension
 
-version = "1.2.0"
+version = "1.3.0"
 setup(name='OpenEXR',
   author = 'James Bowman',
   author_email = 'jamesb@excamera.com',

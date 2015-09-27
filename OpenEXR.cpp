@@ -22,12 +22,15 @@ typedef int Py_ssize_t;
   #define PyString_Size(x) PyBytes_Size(x)
   #define PyString_FromString(x) PyBytes_FromString(x)
   #define PyString_FromStringAndSize(x, y) PyBytes_FromStringAndSize(x, y)
+  #define PyUTF8_AsSstring(x)   PyString_AsString(PyUnicode_AsUTF8String(x))
+  #define PyUTF8_FromSstring(x)   Something...
 #else
   #define MOD_ERROR_VAL
   #define MOD_SUCCESS_VAL(val)
   #define MOD_INIT(name) extern "C" void init##name(void)
   #define MOD_DEF(ob, name, doc, methods) \
           ob = Py_InitModule3(name, methods, doc);
+  #define PyUTF8_AsSstring(x)   PyString_AsString(x)
 #endif
 
 #include <ImathBox.h>
@@ -267,9 +270,7 @@ static PyObject *channel(PyObject *self, PyObject *args, PyObject *kw)
     Imf::PixelType pt;
     if (pixel_type != NULL) {
         if (PyObject_GetAttrString(pixel_type,"v") == NULL) {
-            return PyErr_Format(PyExc_TypeError, "Invalid PixelType object %s",
-                                    PyString_AsString(
-                                        PyObject_GetAttrString(PyObject_Type(pixel_type),"__name__")));
+            return PyErr_Format(PyExc_TypeError, "Invalid PixelType object");
         }
         pt = PixelType(PyLong_AsLong(PyObject_StealAttrString(pixel_type, "v")));
     } else {
@@ -366,7 +367,7 @@ static PyObject *channels(PyObject *self, PyObject *args, PyObject *kw)
     PyObject *item;
 
     while ((item = PyIter_Next(iterator)) != NULL) {
-      char *cname = PyString_AsString(item);
+      char *cname = PyUTF8_AsSstring(item);
       Channel *channelPtr = channels.findChannel(cname);
       if (channelPtr == NULL) {
           return PyErr_Format(PyExc_TypeError, "There is no channel '%s' in the image", cname);
@@ -480,8 +481,14 @@ static PyObject *dict_from_header(Header h)
             Py_DECREF(ptargs[1]);
         } else if (const PreviewImageAttribute *pia = dynamic_cast <const PreviewImageAttribute *> (a)) {
             int size = pia->value().width() * pia->value().height() * 4;
-            PyObject *args = Py_BuildValue("iis#", pia->value().width(), pia->value().height(), (char*)pia->value().pixels(), size);
+#if PY_MAJOR_VERSION >= 3
+            const char fmt[] = "iiy#";
+#else
+            const char fmt[] = "iis#";
+#endif
+            PyObject *args = Py_BuildValue(fmt, pia->value().width(), pia->value().height(), (char*)pia->value().pixels(), size);
             ob = PyObject_CallObject(pPIFunc, args);
+
             Py_DECREF(args);
         } else if (const LineOrderAttribute *ta = dynamic_cast <const LineOrderAttribute *> (a)) {
             PyObject *args = PyTuple_Pack(1, PyInt_FromLong(ta->value()));
@@ -491,8 +498,7 @@ static PyObject *dict_from_header(Header h)
             PyObject *args = PyTuple_Pack(1, PyInt_FromLong(ta->value()));
             ob = PyObject_CallObject(pCFunc, args);
             Py_DECREF(args);
-        } else
-        if (const ChannelListAttribute *ta = dynamic_cast <const ChannelListAttribute *> (a)) {
+        } else if (const ChannelListAttribute *ta = dynamic_cast <const ChannelListAttribute *> (a)) {
             const ChannelList cl = ta->value();
             PyObject *CS = PyDict_New();
             for (ChannelList::ConstIterator j = cl.begin(); j != cl.end(); ++j) {
@@ -509,8 +515,7 @@ static PyObject *dict_from_header(Header h)
                 Py_DECREF(chanarg);
             }
             ob = CS;
-        } else
-        if (const FloatAttribute *ta = dynamic_cast <const FloatAttribute *> (a)) {
+        } else if (const FloatAttribute *ta = dynamic_cast <const FloatAttribute *> (a)) {
             ob = PyFloat_FromDouble(ta->value());
         } else if (const IntAttribute *ta = dynamic_cast <const IntAttribute *> (a)) {
             ob = PyInt_FromLong(ta->value());
@@ -518,17 +523,14 @@ static PyObject *dict_from_header(Header h)
             PyObject *args = Py_BuildValue("ff", ta->value().x, ta->value().y);
             ob = PyObject_CallObject(pV2FFunc, args);
             Py_DECREF(args);
-        } else
-        if (const StringAttribute *ta = dynamic_cast <const StringAttribute *> (a)) {
+        } else if (const StringAttribute *ta = dynamic_cast <const StringAttribute *> (a)) {
             ob = PyString_FromString(ta->value().c_str());
-        } else
-        if (const TileDescriptionAttribute *ta = dynamic_cast<const TileDescriptionAttribute *>(a)) {
+        } else if (const TileDescriptionAttribute *ta = dynamic_cast<const TileDescriptionAttribute *>(a)) {
             const TileDescription td = ta->value();
             PyObject *m = PyObject_Call1(pLevelMode, Py_BuildValue("(i)", td.mode));
             PyObject *r = PyObject_Call1(pLevelRoundingMode, Py_BuildValue("(i)", td.roundingMode));
             ob = PyObject_Call1(pTileDescription, Py_BuildValue("(iiNN)", td.xSize, td.ySize, m, r));
-        } else
-        if (const ChromaticitiesAttribute *ta = dynamic_cast<const ChromaticitiesAttribute *>(a)) {
+        } else if (const ChromaticitiesAttribute *ta = dynamic_cast<const ChromaticitiesAttribute *>(a)) {
             const Chromaticities &ch(ta->value());
             PyObject *rgbwargs[4];
             rgbwargs[0] = Py_BuildValue("ff", ch.red[0], ch.red[1]);
@@ -594,8 +596,8 @@ static PyObject *isComplete(PyObject *self, PyObject *args)
 /* Method table */
 static PyMethodDef InputFile_methods[] = {
   {"header", inheader, METH_VARARGS},
-  {"channel", (PyCFunction)channel, METH_KEYWORDS},
-  {"channels", (PyCFunction)channels, METH_KEYWORDS},
+  {"channel", (PyCFunction)channel, METH_VARARGS | METH_KEYWORDS},
+  {"channels", (PyCFunction)channels, METH_VARARGS | METH_KEYWORDS},
   {"close", inclose, METH_VARARGS},
   {"isComplete", isComplete, METH_VARARGS},
   {NULL, NULL},
@@ -618,7 +620,7 @@ InputFile_Repr(PyObject *self)
     char buf[50];
 
     sprintf(buf, "InputFile represented");
-    return PyString_FromString(buf);
+    return PyUnicode_FromString(buf);
 }
 
 static PyTypeObject InputFile_Type = {
@@ -669,6 +671,10 @@ int makeInputFile(PyObject *self, PyObject *args, PyObject *kwds)
     if (PyArg_ParseTuple(args, "O:InputFile", &fo)) {
       if (PyString_Check(fo)) {
           filename = PyString_AsString(fo);
+          object->fo = NULL;
+          object->istream = NULL;
+      } else if (PyUnicode_Check(fo)) {
+          filename = PyUTF8_AsSstring(fo);
           object->fo = NULL;
           object->istream = NULL;
       } else {
@@ -730,7 +736,7 @@ static PyObject *outwrite(PyObject *self, PyObject *args)
     for (ChannelList::ConstIterator i = channels.begin();
          i != channels.end();
          ++i) {
-        PyObject *channel_spec = PyDict_GetItem(pixeldata, PyString_FromString(i.name()));
+        PyObject *channel_spec = PyDict_GetItem(pixeldata, PyUnicode_FromString(i.name()));
         if (channel_spec != NULL) {
             Imf::PixelType pt = i.channel().type;
             int typeSize = 4;
@@ -824,7 +830,7 @@ OutputFile_Repr(PyObject *self)
     char buf[50];
 
     sprintf(buf, "OutputFile represented");
-    return PyString_FromString(buf);
+    return PyUnicode_FromString(buf);
 }
 
 static PyTypeObject OutputFile_Type = {
@@ -880,6 +886,10 @@ int makeOutputFile(PyObject *self, PyObject *args, PyObject *kwds)
           filename = PyString_AsString(fo);
           object->fo = NULL;
           object->ostream = NULL;
+      } else if (PyUnicode_Check(fo)) {
+          filename = PyUTF8_AsSstring(fo);
+          object->fo = NULL;
+          object->ostream = NULL;
       } else {
           object->fo = fo;
           Py_INCREF(fo);
@@ -904,42 +914,43 @@ int makeOutputFile(PyObject *self, PyObject *args, PyObject *kwds)
     PyObject *key, *value;
 
     while (PyDict_Next(header_dict, &pos, &key, &value)) {
+        const char *ks = PyUTF8_AsSstring(key);
         if (PyFloat_Check(value)) {
-            header.insert(PyString_AsString(key), FloatAttribute(PyFloat_AsDouble(value)));
+            header.insert(ks, FloatAttribute(PyFloat_AsDouble(value)));
         }
         else if (PyInt_Check(value)) {
-            header.insert(PyString_AsString(key), IntAttribute(PyInt_AsLong(value)));
+            header.insert(ks, IntAttribute(PyInt_AsLong(value)));
         } else if (PyString_Check(value)) {
-            header.insert(PyString_AsString(key), StringAttribute(PyString_AsString(value)));
+            header.insert(ks, StringAttribute(PyUTF8_AsSstring(value)));
         } else if (PyObject_IsInstance(value, pB2i)) {
             Box2i box(V2i(PyLong_AsLong(PyObject_StealAttrString(PyObject_StealAttrString(value, "min"), "x")),
                           PyLong_AsLong(PyObject_StealAttrString(PyObject_StealAttrString(value, "min"), "y"))),
                       V2i(PyLong_AsLong(PyObject_StealAttrString(PyObject_StealAttrString(value, "max"), "x")),
                           PyLong_AsLong(PyObject_StealAttrString(PyObject_StealAttrString(value, "max"), "y"))));
-            header.insert(PyString_AsString(key), Box2iAttribute(box));
+            header.insert(ks, Box2iAttribute(box));
         } else if (PyObject_IsInstance(value, pB2f)) {
             Box2f box(V2f(PyFloat_AsDouble(PyObject_StealAttrString(PyObject_StealAttrString(value, "min"), "x")),
                           PyFloat_AsDouble(PyObject_StealAttrString(PyObject_StealAttrString(value, "min"), "y"))),
                       V2f(PyFloat_AsDouble(PyObject_StealAttrString(PyObject_StealAttrString(value, "max"), "x")),
                           PyFloat_AsDouble(PyObject_StealAttrString(PyObject_StealAttrString(value, "max"), "y"))));
-            header.insert(PyString_AsString(key), Box2fAttribute(box));
+            header.insert(ks, Box2fAttribute(box));
         } else if (PyObject_IsInstance(value, pPI)) {
             PreviewImage pi(PyLong_AsLong(PyObject_StealAttrString(value, "width")),
                             PyLong_AsLong(PyObject_StealAttrString(value, "height")),
                             (Imf::PreviewRgba *)PyString_AsString(PyObject_StealAttrString(value, "pixels")));
-            header.insert(PyString_AsString(key), PreviewImageAttribute(pi));
+            header.insert(ks, PreviewImageAttribute(pi));
         } else if (PyObject_IsInstance(value, pV2f)) {
             V2f v(PyFloat_AsDouble(PyObject_StealAttrString(value, "x")), PyFloat_AsDouble(PyObject_StealAttrString(value, "y")));
 
-            header.insert(PyString_AsString(key), V2fAttribute(v));
+            header.insert(ks, V2fAttribute(v));
         } else if (PyObject_IsInstance(value, pLO)) {
             LineOrder i = (LineOrder)PyInt_AsLong(PyObject_StealAttrString(value, "v"));
 
-            header.insert(PyString_AsString(key), LineOrderAttribute(i));
+            header.insert(ks, LineOrderAttribute(i));
         } else if (PyObject_IsInstance(value, pCOMP)) {
             Compression i = (Compression)PyInt_AsLong(PyObject_StealAttrString(value, "v"));
 
-            header.insert(PyString_AsString(key), CompressionAttribute(i));
+            header.insert(ks, CompressionAttribute(i));
         } else if (PyObject_IsInstance(value, pCH)) {
             V2f red(PyFloat_AsDouble(PyObject_StealAttrString(PyObject_StealAttrString(value, "red"), "x")),
                     PyFloat_AsDouble(PyObject_StealAttrString(PyObject_StealAttrString(value, "red"), "y")));
@@ -950,14 +961,14 @@ int makeOutputFile(PyObject *self, PyObject *args, PyObject *kwds)
             V2f white(PyFloat_AsDouble(PyObject_StealAttrString(PyObject_StealAttrString(value, "white"), "x")),
                       PyFloat_AsDouble(PyObject_StealAttrString(PyObject_StealAttrString(value, "white"), "y")));
             Chromaticities c(red, green, blue, white);
-            header.insert(PyString_AsString(key), ChromaticitiesAttribute(c));
+            header.insert(ks, ChromaticitiesAttribute(c));
         } else if (PyObject_IsInstance(value, pTD)) {
             TileDescription td(PyInt_AsLong(PyObject_StealAttrString(value, "xSize")),
                                PyInt_AsLong(PyObject_StealAttrString(value, "ySize")),
                                (Imf::LevelMode)PyInt_AsLong(PyObject_StealAttrString(PyObject_StealAttrString(value, "mode"), "v")),
                                (Imf::LevelRoundingMode)PyInt_AsLong(PyObject_StealAttrString(PyObject_StealAttrString(value, "roundingMode"), "v"))
                                );
-            header.insert(PyString_AsString(key), TileDescriptionAttribute(td));
+            header.insert(ks, TileDescriptionAttribute(td));
         } else if (PyDict_Check(value)) {
             PyObject *key2, *value2;
             Py_ssize_t pos2 = 0;
@@ -967,7 +978,7 @@ int makeOutputFile(PyObject *self, PyObject *args, PyObject *kwds)
                     printf("%s -> %s\n",
                         PyString_AsString(key2),
                         PyString_AsString(PyObject_Str(PyObject_Type(value2))));
-                header.channels().insert(PyString_AsString(key2),
+                header.channels().insert(PyUTF8_AsSstring(key2),
                                          Channel(PixelType(PyLong_AsLong(PyObject_StealAttrString(PyObject_StealAttrString(value2, "type"), "v"))),
                                                  PyLong_AsLong(PyObject_StealAttrString(value2, "xSampling")),
                                                  PyLong_AsLong(PyObject_StealAttrString(value2, "ySampling"))));
@@ -976,8 +987,8 @@ int makeOutputFile(PyObject *self, PyObject *args, PyObject *kwds)
         } else if (PyList_Check(value)) {
             StringVector sv(PyList_Size(value));
             for (size_t i = 0; i < sv.size(); i++)
-                sv[i] = PyString_AsString(PyList_GetItem(value, i));
-            header.insert(PyString_AsString(key), StringVectorAttribute(sv));
+                sv[i] = PyUTF8_AsSstring(PyList_GetItem(value, i));
+            header.insert(ks, StringVectorAttribute(sv));
 #endif
         } else {
             printf("XXX - unknown attribute: %s\n", PyString_AsString(PyObject_Str(key)));
