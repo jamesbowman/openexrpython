@@ -165,6 +165,54 @@ class TestDirected(unittest.TestCase):
             oexr = OpenEXR.InputFile("out.exr")
             h = oexr.header()
 
+    def test_timecode_read(self):
+        h = OpenEXR.InputFile("timecode.exr").header()
+        a = h['keyCode']
+        self.assertEqual(a.filmMfcCode,             2)
+        self.assertEqual(a.filmType,                19)
+        self.assertEqual(a.prefix,                  451681)
+        self.assertEqual(a.count,                   9579)
+        self.assertEqual(a.perfOffset,              51)
+        self.assertEqual(a.perfsPerFrame,           4)
+        self.assertEqual(a.perfsPerCount,           64)
+        a = h['timeCode']
+        self.assertEqual(a.hours,                   11)
+        self.assertEqual(a.minutes,                 44)
+        self.assertEqual(a.seconds,                 13)
+        self.assertEqual(a.frame,                   7)
+        self.assertEqual(a.dropFrame,               0)
+        self.assertEqual(a.colorFrame,              0)
+        self.assertEqual(a.fieldPhase,              0)
+        self.assertEqual(a.bgf0,                    0)
+        self.assertEqual(a.bgf1,                    0)
+        self.assertEqual(a.bgf2,                    0)
+
+    def test_code_loopback(self):
+        """ Verify timeCode and keyCode field transit """
+        data = b" " * (4 * 100 * 100)
+        h = OpenEXR.Header(100,100)
+
+        timecodes = [
+            Imath.TimeCode(1, 2, 3, 4, 0, 0, 0, 0, 0, 0),
+            Imath.TimeCode(1, 2, 3, 4, 1, 0, 0, 0, 0, 0),
+            Imath.TimeCode(1, 2, 3, 4, 0, 1, 0, 0, 0, 0),
+            Imath.TimeCode(1, 2, 3, 4, 0, 0, 1, 0, 0, 0),
+            Imath.TimeCode(1, 2, 3, 4, 0, 0, 0, 1, 0, 0),
+            Imath.TimeCode(1, 2, 3, 4, 0, 0, 0, 0, 1, 0),
+            Imath.TimeCode(1, 2, 3, 4, 0, 0, 0, 0, 0, 1),
+            Imath.TimeCode(1, 2, 3, 4, 1, 1, 1, 1, 1, 1),
+        ]
+        keycode = Imath.KeyCode(1, 2, 3, 4, 5, 6, 60)
+        for timecode in timecodes:
+            h['keyCode'] = keycode
+            h['timeCode'] = timecode
+            x = OpenEXR.OutputFile("out2.exr", h)
+            x.writePixels({'R': data, 'G': data, 'B': data})
+            x.close()
+            h = OpenEXR.InputFile("out2.exr").header()
+            self.assertEqual(h['keyCode'], keycode)
+            self.assertEqual(h['timeCode'], timecode)
+
     def xtest_fileobject(self):
         f = StringIO()
         (w, h) = (640, 480)

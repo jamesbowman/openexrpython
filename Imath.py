@@ -159,6 +159,59 @@ class Channel:
     def __eq__(self, other):
         return (self.type, self.xSampling, self.ySampling) == (other.type, other.xSampling, other.ySampling)
 
+class Rational(object):
+    def __init__(self, n, d):
+        self.n = n
+        self.d = d
+    def __repr__(self):
+        return repr("%s/%s (%.3f)" % (self.n, self.d, self.n/float(self.d)))
+    def __eq__(self, other):
+        return self.n == other.n and self.d == other.d
+
+
+class TimeCode:
+    def __init__(self, hours, minutes, seconds, frame, dropFrame=False, colorFrame=False, fieldPhase=False, bgf0=False, bgf1=False, bgf2=False, binaryGroup1=0, binaryGroup2=0, binaryGroup3=0, binaryGroup4=0, binaryGroup5=0, binaryGroup6=0, binaryGroup7=0, binaryGroup8=0):
+        self.hours = hours
+        self.minutes = minutes
+        self.seconds = seconds
+        self.frame = frame
+        self.dropFrame = dropFrame
+        self.colorFrame = colorFrame
+        self.fieldPhase = fieldPhase
+        self.bgf0 = bgf0
+        self.bgf1 = bgf1
+        self.bgf2 = bgf2
+        self.binaryGroup1 = binaryGroup1
+        self.binaryGroup2 = binaryGroup2
+        self.binaryGroup3 = binaryGroup3
+        self.binaryGroup4 = binaryGroup4
+        self.binaryGroup5 = binaryGroup5
+        self.binaryGroup6 = binaryGroup6
+        self.binaryGroup7 = binaryGroup7
+        self.binaryGroup8 = binaryGroup8
+
+    def __repr__(self):
+        # ignoring binaryGroups for now
+        return "<Imath.TimeCode instance { time: %s:%s:%s:%s, dropFrame: %s, colorFrame: %s, fieldPhase: %s, bgf0: %s, bgf1: %s, bgf2: %s" % (self.hours, self.minutes, self.seconds, self.frame, self.dropFrame, self.colorFrame, self.fieldPhase, self.bgf0, self.bgf1, self.bgf2)
+
+    def __eq__(self, other): 
+        return self.__dict__ == other.__dict__
+
+class KeyCode:
+    def __init__(self, filmMfcCode=0, filmType=0, prefix=0, count=0, perfOffset=0, perfsPerFrame=4, perfsPerCount=64):
+        self.filmMfcCode = filmMfcCode
+        self.filmType = filmType
+        self.prefix = prefix
+        self.count = count
+        self.perfOffset = perfOffset
+        self.perfsPerFrame = perfsPerFrame
+        self.perfsPerCount = perfsPerCount
+    def __repr__(self):
+        return "<Imath.KeyCode instance { filmMfcCode: %s, filmType: %s, prefix: %s, count: %s, perfOffset: %s, perfsPerFrame: %s, perfsPerCount: %s }" % (self.filmMfcCode, self.filmType, self.prefix, self.count, self.perfOffset, self.perfsPerFrame, self.perfsPerCount)
+
+    def __eq__(self, other): 
+        return self.__dict__ == other.__dict__
+
 class PreviewImage:
     """
     .. index:: RGBA, thumbnail, preview, JPEG, PIL, Python Imaging Library

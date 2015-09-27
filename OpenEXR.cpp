@@ -62,6 +62,13 @@ typedef int Py_ssize_t;
 #include <ImfVecAttribute.h>
 #include <ImfVersion.h>
 
+#include <ImfRationalAttribute.h>
+#include <ImfRational.h>
+#include <ImfKeyCodeAttribute.h>
+#include <ImfKeyCode.h>
+#include <ImfTimeCodeAttribute.h>
+#include <ImfTimeCode.h>
+
 #include <iostream>
 #include <iomanip>
 #include <iostream>
@@ -459,6 +466,9 @@ static PyObject *dict_from_header(Header h)
     PyObject *pLevelMode = PyObject_GetAttrString(pModuleImath, "LevelMode");
     PyObject *pLevelRoundingMode = PyObject_GetAttrString(pModuleImath, "LevelRoundingMode");
     PyObject *pTileDescription = PyObject_GetAttrString(pModuleImath, "TileDescription");
+    PyObject *pRationalFunc = PyObject_GetAttrString(pModuleImath, "Rational");
+    PyObject *pKeyCodeFunc = PyObject_GetAttrString(pModuleImath, "KeyCode");
+    PyObject *pTimeCodeFunc = PyObject_GetAttrString(pModuleImath, "TimeCode");
 
     for (Header::ConstIterator i = h.begin(); i != h.end(); ++i) {
         const Attribute *a = &i.attribute();
@@ -479,6 +489,44 @@ static PyObject *dict_from_header(Header h)
             Py_DECREF(boxArgs);
             Py_DECREF(ptargs[0]);
             Py_DECREF(ptargs[1]);
+        } else if (const KeyCodeAttribute *ka = dynamic_cast <const KeyCodeAttribute *> (a)) {
+            PyObject *args = Py_BuildValue("iiiiiii",
+                                           ka->value().filmMfcCode(),
+                                           ka->value().filmType(),
+                                           ka->value().prefix(),
+                                           ka->value().count(),
+                                           ka->value().perfOffset(),
+                                           ka->value().perfsPerFrame(),
+                                           ka->value().perfsPerCount());
+                ob = PyObject_CallObject(pKeyCodeFunc, args);
+                Py_DECREF(args);
+        } else if (const TimeCodeAttribute *ta = dynamic_cast <const TimeCodeAttribute *> (a)) {
+                PyObject *args = Py_BuildValue("iiiiiiiiiiiiiiiiii",
+                                               ta->value().hours(),
+                                               ta->value().minutes(),
+                                               ta->value().seconds(),
+                                               ta->value().frame(),
+                                               ta->value().dropFrame(),
+                                               ta->value().colorFrame(),
+                                               ta->value().fieldPhase(),
+                                               ta->value().bgf0(),
+                                               ta->value().bgf1(),
+                                               ta->value().bgf2(),
+                                               ta->value().binaryGroup(1),
+                                               ta->value().binaryGroup(2),
+                                               ta->value().binaryGroup(3),
+                                               ta->value().binaryGroup(4),
+                                               ta->value().binaryGroup(5),
+                                               ta->value().binaryGroup(6),
+                                               ta->value().binaryGroup(7),
+                                               ta->value().binaryGroup(8));
+                ob = PyObject_CallObject(pTimeCodeFunc, args);
+                Py_DECREF(args);
+
+        } else if (const RationalAttribute *ra = dynamic_cast <const RationalAttribute *> (a)) {
+            PyObject *args = Py_BuildValue("ii", ra->value().n, ra->value().d);
+            ob = PyObject_CallObject(pRationalFunc, args);
+            Py_DECREF(args);
         } else if (const PreviewImageAttribute *pia = dynamic_cast <const PreviewImageAttribute *> (a)) {
             int size = pia->value().width() * pia->value().height() * 4;
 #if PY_MAJOR_VERSION >= 3
@@ -577,6 +625,9 @@ static PyObject *dict_from_header(Header h)
     Py_DECREF(pLevelMode);
     Py_DECREF(pLevelRoundingMode);
     Py_DECREF(pTileDescription);
+    Py_DECREF(pRationalFunc);
+    Py_DECREF(pKeyCodeFunc);
+    Py_DECREF(pTimeCodeFunc);
 
     return object;
 }
@@ -726,7 +777,7 @@ static PyObject *outwrite(PyObject *self, PyObject *args)
     int width = dw.max.x - dw.min.x + 1;
     int height = dw.max.y - dw.min.y + 1;
     PyObject *pixeldata;
-	
+        
     if (!PyArg_ParseTuple(args, "O!|i:writePixels", &PyDict_Type, &pixeldata, &height))
        return NULL;
 
@@ -909,6 +960,9 @@ int makeOutputFile(PyObject *self, PyObject *args, PyObject *kwds)
     PyObject *pPI = PyObject_GetAttrString(pModuleImath, "PreviewImage");
     PyObject *pCH = PyObject_GetAttrString(pModuleImath, "Chromaticities");
     PyObject *pTD = PyObject_GetAttrString(pModuleImath, "TileDescription");
+    PyObject *pRA = PyObject_GetAttrString(pModuleImath, "Rational");
+    PyObject *pKA = PyObject_GetAttrString(pModuleImath, "KeyCode");
+    PyObject *pTC = PyObject_GetAttrString(pModuleImath, "TimeCode");
 
     Py_ssize_t pos = 0;
     PyObject *key, *value;
@@ -947,6 +1001,40 @@ int makeOutputFile(PyObject *self, PyObject *args, PyObject *kwds)
             LineOrder i = (LineOrder)PyInt_AsLong(PyObject_StealAttrString(value, "v"));
 
             header.insert(ks, LineOrderAttribute(i));
+        } else if (PyObject_IsInstance(value, pTC)) {
+            TimeCode v(PyLong_AsLong(PyObject_StealAttrString(value,"hours")),
+                       PyLong_AsLong(PyObject_StealAttrString(value,"minutes")),
+                       PyLong_AsLong(PyObject_StealAttrString(value,"seconds")),
+                       PyLong_AsLong(PyObject_StealAttrString(value,"frame")),
+                       PyLong_AsLong(PyObject_StealAttrString(value,"dropFrame")),
+                       PyLong_AsLong(PyObject_StealAttrString(value,"colorFrame")),
+                       PyLong_AsLong(PyObject_StealAttrString(value,"fieldPhase")),
+                       PyLong_AsLong(PyObject_StealAttrString(value,"bgf0")),
+                       PyLong_AsLong(PyObject_StealAttrString(value,"bgf1")),
+                       PyLong_AsLong(PyObject_StealAttrString(value,"bgf2")),
+                       PyLong_AsLong(PyObject_StealAttrString(value,"binaryGroup1")),
+                       PyLong_AsLong(PyObject_StealAttrString(value,"binaryGroup2")),
+                       PyLong_AsLong(PyObject_StealAttrString(value,"binaryGroup3")),
+                       PyLong_AsLong(PyObject_StealAttrString(value,"binaryGroup4")),
+                       PyLong_AsLong(PyObject_StealAttrString(value,"binaryGroup5")),
+                       PyLong_AsLong(PyObject_StealAttrString(value,"binaryGroup6")),
+                       PyLong_AsLong(PyObject_StealAttrString(value,"binaryGroup7")),
+                       PyLong_AsLong(PyObject_StealAttrString(value,"binaryGroup8")));
+                                
+            header.insert(ks, TimeCodeAttribute(v));
+        
+        } else if (PyObject_IsInstance(value, pKA)) {
+                KeyCode v(PyLong_AsLong(PyObject_StealAttrString(value, "filmMfcCode")),
+                          PyLong_AsLong(PyObject_StealAttrString(value, "filmType")),
+                          PyLong_AsLong(PyObject_StealAttrString(value, "prefix")),
+                          PyLong_AsLong(PyObject_StealAttrString(value, "count")),
+                          PyLong_AsLong(PyObject_StealAttrString(value, "perfOffset")),
+                          PyLong_AsLong(PyObject_StealAttrString(value, "perfsPerFrame")),
+                          PyLong_AsLong(PyObject_StealAttrString(value, "perfsPerCount")));
+                header.insert(ks, KeyCodeAttribute(v));
+        } else if (PyObject_IsInstance(value, pRA)) {
+            Rational v(PyLong_AsLong(PyObject_StealAttrString(value, "n")), PyLong_AsLong(PyObject_StealAttrString(value, "d")));       
+            header.insert(PyString_AsString(key), RationalAttribute(v));
         } else if (PyObject_IsInstance(value, pCOMP)) {
             Compression i = (Compression)PyInt_AsLong(PyObject_StealAttrString(value, "v"));
 
@@ -1001,6 +1089,11 @@ int makeOutputFile(PyObject *self, PyObject *args, PyObject *kwds)
     Py_DECREF(pLO);
     Py_DECREF(pCOMP);
     Py_DECREF(pPI);
+    Py_DECREF(pCH);
+    Py_DECREF(pTD);
+    Py_DECREF(pRA);
+    Py_DECREF(pKA);
+    Py_DECREF(pTC);
 
     try
     {
