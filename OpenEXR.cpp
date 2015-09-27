@@ -6,6 +6,30 @@ typedef int Py_ssize_t;
 #define PY_SSIZE_T_MIN INT_MIN
 #endif
 
+#if PY_MAJOR_VERSION >= 3
+  #define MOD_ERROR_VAL NULL
+  #define MOD_SUCCESS_VAL(val) val
+  #define MOD_INIT(name) PyMODINIT_FUNC PyInit_##name(void)
+  #define MOD_DEF(ob, name, doc, methods) \
+          static struct PyModuleDef moduledef = { \
+            PyModuleDef_HEAD_INIT, name, doc, -1, methods, }; \
+          ob = PyModule_Create(&moduledef);
+  #define PyInt_FromLong(x) PyLong_FromLong(x)
+  #define PyInt_AsLong(x) PyLong_AsLong(x)
+  #define PyInt_Check(x) PyLong_Check(x)
+  #define PyString_Check(x) PyBytes_Check(x)
+  #define PyString_AsString(x) PyBytes_AsString(x)
+  #define PyString_Size(x) PyBytes_Size(x)
+  #define PyString_FromString(x) PyBytes_FromString(x)
+  #define PyString_FromStringAndSize(x, y) PyBytes_FromStringAndSize(x, y)
+#else
+  #define MOD_ERROR_VAL
+  #define MOD_SUCCESS_VAL(val)
+  #define MOD_INIT(name) extern "C" void init##name(void)
+  #define MOD_DEF(ob, name, doc, methods) \
+          ob = Py_InitModule3(name, methods, doc);
+#endif
+
 #include <ImathBox.h>
 #include <ImfIO.h>
 #include <Iex.h>
@@ -588,31 +612,23 @@ InputFile_dealloc(PyObject *self)
 }
 
 static PyObject *
-InputFile_GetAttr(PyObject *self, char *attrname)
-{
-    return Py_FindMethod(InputFile_methods, self, attrname);
-}
-
-static PyObject *
 InputFile_Repr(PyObject *self)
 {
     //PyObject *result = NULL;
     char buf[50];
-
 
     sprintf(buf, "InputFile represented");
     return PyString_FromString(buf);
 }
 
 static PyTypeObject InputFile_Type = {
-    PyObject_HEAD_INIT(&PyType_Type)
-    0,
+    PyVarObject_HEAD_INIT(&PyType_Type, 0)
     "OpenEXR.InputFile",
     sizeof(InputFileC),
     0,
     (destructor)InputFile_dealloc,
     0,
-    (getattrfunc)InputFile_GetAttr,
+    0,
     0,
     0,
     (reprfunc)InputFile_Repr,
@@ -630,10 +646,16 @@ static PyTypeObject InputFile_Type = {
     
     Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE,
 
+    "OpenEXR Input file object",
+
     0,
     0,
     0,
     0,
+    0,
+    0,
+
+    InputFile_methods
 
     /* the rest are NULLs */
 };
@@ -796,12 +818,6 @@ OutputFile_dealloc(PyObject *self)
 }
 
 static PyObject *
-OutputFile_GetAttr(PyObject *self, char *attrname)
-{
-    return Py_FindMethod(OutputFile_methods, self, attrname);
-}
-
-static PyObject *
 OutputFile_Repr(PyObject *self)
 {
     //PyObject *result = NULL;
@@ -812,14 +828,13 @@ OutputFile_Repr(PyObject *self)
 }
 
 static PyTypeObject OutputFile_Type = {
-    PyObject_HEAD_INIT(&PyType_Type)
-    0,
+    PyVarObject_HEAD_INIT(&PyType_Type, 0)
     "OpenEXR.OutputFile",
     sizeof(OutputFileC),
     0,
     (destructor)OutputFile_dealloc,
     0,
-    (getattrfunc)OutputFile_GetAttr,
+    0,
     0,
     0,
     (reprfunc)OutputFile_Repr,
@@ -837,10 +852,16 @@ static PyTypeObject OutputFile_Type = {
     
     Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE,
 
+    "OpenEXR Output file object",
+
     0,
     0,
     0,
     0,
+    0,
+    0,
+
+    OutputFile_methods
 
     /* the rest are NULLs */
 };
@@ -1041,16 +1062,16 @@ static PyMethodDef methods[] = {
     {NULL, NULL},
 };
 
-extern "C" void initOpenEXR()
+MOD_INIT(OpenEXR)
 {
     PyObject *m, *d, *item;
 
     Imf::staticInitialize();
 
-    m = Py_InitModule("OpenEXR", methods);
+    MOD_DEF(m, "OpenEXR", "", methods)
     d = PyModule_GetDict(m);
 
-    pModuleImath = PyImport_Import(item= PyString_FromString("Imath")); Py_DECREF(item);
+    pModuleImath = PyImport_ImportModule("Imath");
 
     /* initialize module variables/constants */
     InputFile_Type.tp_new = PyType_GenericNew;
@@ -1058,9 +1079,9 @@ extern "C" void initOpenEXR()
     OutputFile_Type.tp_new = PyType_GenericNew;
     OutputFile_Type.tp_init = makeOutputFile;
     if (PyType_Ready(&InputFile_Type) != 0)
-        return;
+        return MOD_ERROR_VAL;
     if (PyType_Ready(&OutputFile_Type) != 0)
-        return;
+        return MOD_ERROR_VAL;
     PyModule_AddObject(m, "InputFile", (PyObject *)&InputFile_Type);
     PyModule_AddObject(m, "OutputFile", (PyObject *)&OutputFile_Type);
 
@@ -1076,4 +1097,6 @@ extern "C" void initOpenEXR()
     PyDict_SetItemString(d, "HALF", item= PyLong_FromLong(HALF)); Py_DECREF(item);
     PyDict_SetItemString(d, "FLOAT", item= PyLong_FromLong(FLOAT)); Py_DECREF(item);
     PyDict_SetItemString(d, "__version__", item= PyString_FromString(VERSION)); Py_DECREF(item);
+
+    return MOD_SUCCESS_VAL(m);
 }

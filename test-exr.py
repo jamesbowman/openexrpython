@@ -1,7 +1,10 @@
 import unittest
 import random
 import array
-import StringIO
+try:
+    from StringIO import StringIO
+except ImportError:
+    from io import StringIO
 
 import Imath
 import OpenEXR
@@ -154,7 +157,7 @@ class TestDirected(unittest.TestCase):
             h = oexr.header()
 
     def test_fileobject(self):
-        f = StringIO.StringIO()
+        f = StringIO()
         (w, h) = (640, 480)
         data = array.array('f', [ 0 for x in range(w * h) ]).tostring()
         hdr = OpenEXR.Header(w,h)
@@ -169,5 +172,5 @@ if __name__ == '__main__':
         unittest.main()
     else:
         suite = unittest.TestSuite()
-        suite.addTest(TestDirected('test_write_mchannels'))
+        suite.addTest(TestDirected('test_enumerants'))
         unittest.TextTestRunner(verbosity=2).run(suite)
