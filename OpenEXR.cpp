@@ -284,8 +284,10 @@ static PyObject *channel(PyObject *self, PyObject *args, PyObject *kw)
         pt = channelPtr->type;
     }
 
-    int width  = dw.max.x - dw.min.x + 1;
-    int height = maxy - miny + 1;
+    int xSampling = channelPtr->xSampling;
+    int ySampling = channelPtr->ySampling;
+    int width  = (dw.max.x - dw.min.x + 1) / xSampling;
+    int height = (maxy - miny + 1) / ySampling;
 
     size_t typeSize;
     switch (pt) {
@@ -313,10 +315,10 @@ static PyObject *channel(PyObject *self, PyObject *args, PyObject *kw)
         size_t ystride = typeSize * width;
         frameBuffer.insert(cname,
                            Slice(pt,
-                                 pixels - dw.min.x * xstride - miny * ystride,
+                                 pixels - dw.min.x * xstride / xSampling - miny * ystride / ySampling,
                                  xstride,
                                  ystride,
-                                 1,1,
+                                 xSampling, ySampling,
                                  0.0));
         file->setFrameBuffer(frameBuffer);
         file->readPixels(miny, maxy);
@@ -804,14 +806,17 @@ static PyObject *outwrite(PyObject *self, PyObject *args)
             default:
                 break;
             }
+            int xSampling = i.channel().xSampling;
+            int ySampling = i.channel().ySampling;
             int yStride = typeSize * width;
 
             if (!PyString_Check(channel_spec)) {
                 PyErr_Format(PyExc_TypeError, "Data for channel '%s' must be a string", i.name());
                 return NULL;
             }
-            if (PyString_Size(channel_spec) != (height * yStride)) {
-                PyErr_Format(PyExc_TypeError, "Data for channel '%s' should have size %d but got %zu", i.name(), (height * yStride), PyString_Size(channel_spec));
+            ssize_t expectedSize = (height * yStride) / (xSampling * ySampling);
+            if (PyString_Size(channel_spec) != expectedSize) {
+                PyErr_Format(PyExc_TypeError, "Data for channel '%s' should have size %d but got %zu", i.name(), expectedSize, PyString_Size(channel_spec));
                 return NULL;
             }
 
@@ -819,9 +824,10 @@ static PyObject *outwrite(PyObject *self, PyObject *args)
 
             frameBuffer.insert(i.name(),                        // name
                 Slice(pt,                                       // type
-                      srcPixels - dw.min.x * typeSize - file->currentScanLine() * yStride,                         // base 
+                      srcPixels - dw.min.x * typeSize / xSampling - file->currentScanLine() * yStride / ySampling,                         // base
                       typeSize,                                 // xStride
-                      yStride));                                // yStride
+                      yStride,                                  // yStride
+                      xSampling, ySampling));                   // subsampling
         }
     }
 
