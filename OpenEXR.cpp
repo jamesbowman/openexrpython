@@ -981,7 +981,7 @@ int makeOutputFile(PyObject *self, PyObject *args, PyObject *kwds)
         else if (PyInt_Check(value)) {
             header.insert(ks, IntAttribute(PyInt_AsLong(value)));
         } else if (PyString_Check(value)) {
-            header.insert(ks, StringAttribute(PyUTF8_AsSstring(value)));
+            header.insert(ks, StringAttribute(PyString_AsString(value)));
         } else if (PyObject_IsInstance(value, pB2i)) {
             Box2i box(V2i(PyLong_AsLong(PyObject_StealAttrString(PyObject_StealAttrString(value, "min"), "x")),
                           PyLong_AsLong(PyObject_StealAttrString(PyObject_StealAttrString(value, "min"), "y"))),
@@ -1085,7 +1085,7 @@ int makeOutputFile(PyObject *self, PyObject *args, PyObject *kwds)
             header.insert(ks, StringVectorAttribute(sv));
 #endif
         } else {
-            printf("XXX - unknown attribute: %s\n", PyString_AsString(PyObject_Str(key)));
+            printf("XXX - unknown attribute: %s\n", PyUTF8_AsSstring(PyObject_Str(key)));
         }
     }
 
