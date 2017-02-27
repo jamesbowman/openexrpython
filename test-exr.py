@@ -225,6 +225,17 @@ class TestDirected(unittest.TestCase):
         f.seek(0)
         self.assertEqual(hdr, OpenEXR.InputFile(f).header())
 
+    def test_write_buffer_object(self):
+        (w, h) = (640, 480)
+        a = array('f', [(i % w)/float(w) for i in range(w * h)])
+        data = bytearray(a.tobytes())
+        hdr = OpenEXR.Header(w,h)
+        x = OpenEXR.OutputFile("out3.exr", hdr)
+        x.writePixels({'R': data, 'G': data, 'B': data})
+        x.close()
+        r = self.load_red("out3.exr")
+        self.assertTrue(r == data)
+
 if __name__ == '__main__':
     if 1:
         unittest.main()
