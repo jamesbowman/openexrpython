@@ -770,6 +770,12 @@ typedef struct {
     int is_opened;
 } OutputFileC;
 
+static void releaseviews(std::vector<Py_buffer> &views)
+{
+    for (int i=0; i < views.size(); i++)
+        PyBuffer_Release(&views[i]);
+}
+
 static PyObject *outwrite(PyObject *self, PyObject *args)
 {
     OutputFile *file = &((OutputFileC *)self)->o;
@@ -784,6 +790,7 @@ static PyObject *outwrite(PyObject *self, PyObject *args)
        return NULL;
 
     FrameBuffer frameBuffer;
+    std::vector<Py_buffer> views;
 
     const ChannelList &channels = file->header().channels();
     for (ChannelList::ConstIterator i = channels.begin();
@@ -809,18 +816,34 @@ static PyObject *outwrite(PyObject *self, PyObject *args)
             int xSampling = i.channel().xSampling;
             int ySampling = i.channel().ySampling;
             int yStride = typeSize * width;
-
-            if (!PyString_Check(channel_spec)) {
-                PyErr_Format(PyExc_TypeError, "Data for channel '%s' must be a string", i.name());
-                return NULL;
-            }
+            char *srcPixels;
             ssize_t expectedSize = (height * yStride) / (xSampling * ySampling);
-            if (PyString_Size(channel_spec) != expectedSize) {
-                PyErr_Format(PyExc_TypeError, "Data for channel '%s' should have size %d but got %zu", i.name(), expectedSize, PyString_Size(channel_spec));
+            Py_ssize_t bufferSize;
+
+            if (PyString_Check(channel_spec)) {
+                bufferSize = PyString_Size(channel_spec);
+                srcPixels = PyString_AsString(channel_spec);
+            } else if (PyObject_CheckBuffer(channel_spec)) {
+                Py_buffer view;
+                if (PyObject_GetBuffer(channel_spec, &view, PyBUF_CONTIG_RO) != 0) {
+                    releaseviews(views);
+                    PyErr_Format(PyExc_TypeError, "Unsupported buffer structure for channel '%s'", i.name());
+                    return NULL;
+                }
+                views.push_back(view);
+                bufferSize = view.len;
+                srcPixels = (char*)view.buf;
+            } else {
+                releaseviews(views);
+                PyErr_Format(PyExc_TypeError, "Data for channel '%s' must be a string or support buffer protocal", i.name());
                 return NULL;
             }
 
-            char *srcPixels = PyString_AsString(channel_spec);
+            if (bufferSize != expectedSize) {
+                releaseviews(views);
+                PyErr_Format(PyExc_TypeError, "Data for channel '%s' should have size %zu but got %zu", i.name(), expectedSize, bufferSize);
+                return NULL;
+            }
 
             frameBuffer.insert(i.name(),                        // name
                 Slice(pt,                                       // type
@@ -838,10 +861,11 @@ static PyObject *outwrite(PyObject *self, PyObject *args)
     }
     catch (const std::exception &e)
     {
+        releaseviews(views);
         PyErr_SetString(PyExc_IOError, e.what());
         return NULL;
     }
-
+    releaseviews(views);
     Py_RETURN_NONE;
 }
 
