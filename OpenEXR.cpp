@@ -789,6 +789,14 @@ static PyObject *outwrite(PyObject *self, PyObject *args)
     if (!PyArg_ParseTuple(args, "O!|i:writePixels", &PyDict_Type, &pixeldata, &height))
        return NULL;
 
+    ssize_t currentScanLine = file->currentScanLine();
+    if (file->header().lineOrder() == DECREASING_Y) {
+        // With DECREASING_Y, currentScanLine() returns the maximum Y value of
+        // the window on the first call, and decrements at each scan line.
+        // We have to adjust to point to the correct address in the client buffer.
+        currentScanLine = dw.max.y - currentScanLine + dw.min.y;
+    }
+
     FrameBuffer frameBuffer;
     std::vector<Py_buffer> views;
 
@@ -835,7 +843,7 @@ static PyObject *outwrite(PyObject *self, PyObject *args)
                 srcPixels = (char*)view.buf;
             } else {
                 releaseviews(views);
-                PyErr_Format(PyExc_TypeError, "Data for channel '%s' must be a string or support buffer protocal", i.name());
+                PyErr_Format(PyExc_TypeError, "Data for channel '%s' must be a string or support buffer protocol", i.name());
                 return NULL;
             }
 
@@ -847,7 +855,7 @@ static PyObject *outwrite(PyObject *self, PyObject *args)
 
             frameBuffer.insert(i.name(),                        // name
                 Slice(pt,                                       // type
-                      srcPixels - dw.min.x * typeSize / xSampling - file->currentScanLine() * yStride / ySampling,                         // base
+                      srcPixels - dw.min.x * typeSize / xSampling - currentScanLine * yStride / ySampling,                         // base
                       typeSize,                                 // xStride
                       yStride,                                  // yStride
                       xSampling, ySampling));                   // subsampling
