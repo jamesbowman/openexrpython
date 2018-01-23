@@ -284,8 +284,10 @@ static PyObject *channel(PyObject *self, PyObject *args, PyObject *kw)
         pt = channelPtr->type;
     }
 
-    int width  = dw.max.x - dw.min.x + 1;
-    int height = maxy - miny + 1;
+    int xSampling = channelPtr->xSampling;
+    int ySampling = channelPtr->ySampling;
+    int width  = (dw.max.x - dw.min.x + 1) / xSampling;
+    int height = (maxy - miny + 1) / ySampling;
 
     size_t typeSize;
     switch (pt) {
@@ -313,10 +315,10 @@ static PyObject *channel(PyObject *self, PyObject *args, PyObject *kw)
         size_t ystride = typeSize * width;
         frameBuffer.insert(cname,
                            Slice(pt,
-                                 pixels - dw.min.x * xstride - miny * ystride,
+                                 pixels - dw.min.x * xstride / xSampling - miny * ystride / ySampling,
                                  xstride,
                                  ystride,
-                                 1,1,
+                                 xSampling, ySampling,
                                  0.0));
         file->setFrameBuffer(frameBuffer);
         file->readPixels(miny, maxy);
@@ -768,6 +770,12 @@ typedef struct {
     int is_opened;
 } OutputFileC;
 
+static void releaseviews(std::vector<Py_buffer> &views)
+{
+    for (int i=0; i < views.size(); i++)
+        PyBuffer_Release(&views[i]);
+}
+
 static PyObject *outwrite(PyObject *self, PyObject *args)
 {
     OutputFile *file = &((OutputFileC *)self)->o;
@@ -781,7 +789,16 @@ static PyObject *outwrite(PyObject *self, PyObject *args)
     if (!PyArg_ParseTuple(args, "O!|i:writePixels", &PyDict_Type, &pixeldata, &height))
        return NULL;
 
+    ssize_t currentScanLine = file->currentScanLine();
+    if (file->header().lineOrder() == DECREASING_Y) {
+        // With DECREASING_Y, currentScanLine() returns the maximum Y value of
+        // the window on the first call, and decrements at each scan line.
+        // We have to adjust to point to the correct address in the client buffer.
+        currentScanLine = dw.max.y - currentScanLine + dw.min.y;
+    }
+
     FrameBuffer frameBuffer;
+    std::vector<Py_buffer> views;
 
     const ChannelList &channels = file->header().channels();
     for (ChannelList::ConstIterator i = channels.begin();
@@ -804,24 +821,44 @@ static PyObject *outwrite(PyObject *self, PyObject *args)
             default:
                 break;
             }
+            int xSampling = i.channel().xSampling;
+            int ySampling = i.channel().ySampling;
             int yStride = typeSize * width;
+            char *srcPixels;
+            ssize_t expectedSize = (height * yStride) / (xSampling * ySampling);
+            Py_ssize_t bufferSize;
 
-            if (!PyString_Check(channel_spec)) {
-                PyErr_Format(PyExc_TypeError, "Data for channel '%s' must be a string", i.name());
+            if (PyString_Check(channel_spec)) {
+                bufferSize = PyString_Size(channel_spec);
+                srcPixels = PyString_AsString(channel_spec);
+            } else if (PyObject_CheckBuffer(channel_spec)) {
+                Py_buffer view;
+                if (PyObject_GetBuffer(channel_spec, &view, PyBUF_CONTIG_RO) != 0) {
+                    releaseviews(views);
+                    PyErr_Format(PyExc_TypeError, "Unsupported buffer structure for channel '%s'", i.name());
+                    return NULL;
+                }
+                views.push_back(view);
+                bufferSize = view.len;
+                srcPixels = (char*)view.buf;
+            } else {
+                releaseviews(views);
+                PyErr_Format(PyExc_TypeError, "Data for channel '%s' must be a string or support buffer protocol", i.name());
                 return NULL;
             }
-            if (PyString_Size(channel_spec) != (height * yStride)) {
-                PyErr_Format(PyExc_TypeError, "Data for channel '%s' should have size %d but got %zu", i.name(), (height * yStride), PyString_Size(channel_spec));
+
+            if (bufferSize != expectedSize) {
+                releaseviews(views);
+                PyErr_Format(PyExc_TypeError, "Data for channel '%s' should have size %zu but got %zu", i.name(), expectedSize, bufferSize);
                 return NULL;
             }
-
-            char *srcPixels = PyString_AsString(channel_spec);
 
             frameBuffer.insert(i.name(),                        // name
                 Slice(pt,                                       // type
-                      srcPixels - dw.min.x * typeSize - file->currentScanLine() * yStride,                         // base 
+                      srcPixels - dw.min.x * typeSize / xSampling - currentScanLine * yStride / ySampling,                         // base
                       typeSize,                                 // xStride
-                      yStride));                                // yStride
+                      yStride,                                  // yStride
+                      xSampling, ySampling));                   // subsampling
         }
     }
 
@@ -832,10 +869,11 @@ static PyObject *outwrite(PyObject *self, PyObject *args)
     }
     catch (const std::exception &e)
     {
+        releaseviews(views);
         PyErr_SetString(PyExc_IOError, e.what());
         return NULL;
     }
-
+    releaseviews(views);
     Py_RETURN_NONE;
 }
 
@@ -975,7 +1013,7 @@ int makeOutputFile(PyObject *self, PyObject *args, PyObject *kwds)
         else if (PyInt_Check(value)) {
             header.insert(ks, IntAttribute(PyInt_AsLong(value)));
         } else if (PyString_Check(value)) {
-            header.insert(ks, StringAttribute(PyUTF8_AsSstring(value)));
+            header.insert(ks, StringAttribute(PyString_AsString(value)));
         } else if (PyObject_IsInstance(value, pB2i)) {
             Box2i box(V2i(PyLong_AsLong(PyObject_StealAttrString(PyObject_StealAttrString(value, "min"), "x")),
                           PyLong_AsLong(PyObject_StealAttrString(PyObject_StealAttrString(value, "min"), "y"))),
@@ -1079,7 +1117,7 @@ int makeOutputFile(PyObject *self, PyObject *args, PyObject *kwds)
             header.insert(ks, StringVectorAttribute(sv));
 #endif
         } else {
-            printf("XXX - unknown attribute: %s\n", PyString_AsString(PyObject_Str(key)));
+            printf("XXX - unknown attribute: %s\n", PyUTF8_AsSstring(PyObject_Str(key)));
         }
     }
 
