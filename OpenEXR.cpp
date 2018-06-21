@@ -1012,7 +1012,7 @@ int makeOutputFile(PyObject *self, PyObject *args, PyObject *kwds)
         }
         else if (PyInt_Check(value)) {
             header.insert(ks, IntAttribute(PyInt_AsLong(value)));
-        } else if (PyString_Check(value)) {
+        } else if (PyBytes_Check(value)) {
             header.insert(ks, StringAttribute(PyString_AsString(value)));
         } else if (PyObject_IsInstance(value, pB2i)) {
             Box2i box(V2i(PyLong_AsLong(PyObject_StealAttrString(PyObject_StealAttrString(value, "min"), "x")),
