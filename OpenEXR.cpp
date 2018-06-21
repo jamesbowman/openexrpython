@@ -1072,7 +1072,7 @@ int makeOutputFile(PyObject *self, PyObject *args, PyObject *kwds)
                 header.insert(ks, KeyCodeAttribute(v));
         } else if (PyObject_IsInstance(value, pRA)) {
             Rational v(PyLong_AsLong(PyObject_StealAttrString(value, "n")), PyLong_AsLong(PyObject_StealAttrString(value, "d")));       
-            header.insert(PyString_AsString(key), RationalAttribute(v));
+            header.insert(ks, RationalAttribute(v));
         } else if (PyObject_IsInstance(value, pCOMP)) {
             Compression i = (Compression)PyInt_AsLong(PyObject_StealAttrString(value, "v"));
 
