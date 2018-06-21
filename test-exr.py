@@ -75,6 +75,22 @@ class TestDirected(unittest.TestCase):
         hdr = OpenEXR.Header(640, 480)
         self.assertRaises(IOError, lambda: OpenEXR.OutputFile("/forbidden", hdr))
 
+    def test_metadata_roundtrip(self):
+        infile = OpenEXR.InputFile("GoldenGate.exr")
+        h = infile.header()
+        channels = h['channels'].keys()
+        newchannels = dict(zip(channels, infile.channels(channels)))
+
+        h['lytro-metadata'] = "Some custom data"
+
+        out = OpenEXR.OutputFile("modified.exr", h)
+        out.writePixels(newchannels)
+        out.close()
+
+        infile = OpenEXR.InputFile("modified.exr")
+        h = infile.header()
+        print(repr(h['lytro-metadata']))
+
     def test_invalid_pt(self):
         f = OpenEXR.InputFile("GoldenGate.exr")
         FLOAT = Imath.PixelType.FLOAT
