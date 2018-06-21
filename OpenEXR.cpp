@@ -772,7 +772,7 @@ typedef struct {
 
 static void releaseviews(std::vector<Py_buffer> &views)
 {
-    for (int i=0; i < views.size(); i++)
+    for (size_t i=0; i < views.size(); i++)
         PyBuffer_Release(&views[i]);
 }
 
