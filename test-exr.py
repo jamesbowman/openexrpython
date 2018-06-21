@@ -81,7 +81,7 @@ class TestDirected(unittest.TestCase):
         channels = h['channels'].keys()
         newchannels = dict(zip(channels, infile.channels(channels)))
 
-        h['lytro-metadata'] = "Some custom data"
+        # h['lytro-metadata'] = "Some custom data"
 
         out = OpenEXR.OutputFile("modified.exr", h)
         out.writePixels(newchannels)
@@ -89,7 +89,8 @@ class TestDirected(unittest.TestCase):
 
         infile = OpenEXR.InputFile("modified.exr")
         h = infile.header()
-        print(repr(h['lytro-metadata']))
+        # print(repr(h['lytro-metadata']))
+        # print(h['fps'])
 
     def test_invalid_pt(self):
         f = OpenEXR.InputFile("GoldenGate.exr")
