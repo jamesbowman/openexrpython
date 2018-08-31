@@ -1239,6 +1239,10 @@ MOD_INIT(OpenEXR)
     PyDict_SetItemString(d, "HALF", item= PyLong_FromLong(HALF)); Py_DECREF(item);
     PyDict_SetItemString(d, "FLOAT", item= PyLong_FromLong(FLOAT)); Py_DECREF(item);
     PyDict_SetItemString(d, "__version__", item= PyString_FromString(VERSION)); Py_DECREF(item);
+#ifndef OPENEXR_VERSION_HEX
+#define OPENEXR_VERSION_HEX 0x01000300
+#endif
+    PyDict_SetItemString(d, "OPENEXR_VERSION_HEX", item= PyLong_FromLong(OPENEXR_VERSION_HEX)); Py_DECREF(item);
 
     return MOD_SUCCESS_VAL(m);
 }
