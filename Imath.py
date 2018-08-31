@@ -72,6 +72,8 @@ class Enumerated(object):
         return self.names[self.v]
     def __cmp__(self, other):
         return self.v - other.v
+    def __eq__(self, other):
+        return self.v == other.v
 
 class LineOrder(Enumerated):
     """
@@ -95,7 +97,7 @@ class LineOrder(Enumerated):
 
 class Compression(Enumerated):
     """
-    .. index:: NO_COMPRESSION, RLE_COMPRESSION, ZIPS_COMPRESSION, ZIP_COMPRESSION, PIZ_COMPRESSION, PXR24_COMPRESSION
+    .. index:: NO_COMPRESSION, RLE_COMPRESSION, ZIPS_COMPRESSION, ZIP_COMPRESSION, PIZ_COMPRESSION, PXR24_COMPRESSION, B44_COMPRESSION, B44A_COMPRESSION, DWAA_COMPRESSION, DWAB_COMPRESSION,
 
     Compression can have possible values:
     ``NO_COMPRESSION``,
@@ -103,7 +105,11 @@ class Compression(Enumerated):
     ``ZIPS_COMPRESSION``,
     ``ZIP_COMPRESSION``,
     ``PIZ_COMPRESSION``,
-    ``PXR24_COMPRESSION``.
+    ``PXR24_COMPRESSION``,
+    ``B44_COMPRESSION``,
+    ``B44A_COMPRESSION``,
+    ``DWAA_COMPRESSION``,
+    ``DWAB_COMPRESSION``.
 
     .. doctest::
     
@@ -117,7 +123,14 @@ class Compression(Enumerated):
     ZIP_COMPRESSION = 3
     PIZ_COMPRESSION = 4
     PXR24_COMPRESSION = 5
-    names = [ "NO_COMPRESSION", "RLE_COMPRESSION", "ZIPS_COMPRESSION", "ZIP_COMPRESSION", "PIZ_COMPRESSION", "PXR24_COMPRESSION"]
+    B44_COMPRESSION = 6
+    B44A_COMPRESSION = 7
+    DWAA_COMPRESSION = 8
+    DWAB_COMPRESSION = 9
+    names = [
+        "NO_COMPRESSION", "RLE_COMPRESSION", "ZIPS_COMPRESSION", "ZIP_COMPRESSION", "PIZ_COMPRESSION", "PXR24_COMPRESSION",
+        "B44_COMPRESSION", "B44A_COMPRESSION", "DWAA_COMPRESSION", "DWAB_COMPRESSION"
+    ]
 
 class PixelType(Enumerated):
     """

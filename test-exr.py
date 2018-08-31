@@ -254,6 +254,30 @@ class TestDirected(unittest.TestCase):
         r = self.load_red("out3.exr")
         self.assertTrue(r == data)
 
+    def test_compression(self):
+        infile = OpenEXR.InputFile("GoldenGate.exr")
+        h = infile.header()
+        channels = h['channels'].keys()
+        newchannels = dict(zip(channels, infile.channels(channels)))
+
+        for c in (
+            Imath.Compression.NO_COMPRESSION,
+            Imath.Compression.RLE_COMPRESSION,
+            Imath.Compression.ZIPS_COMPRESSION,
+            Imath.Compression.ZIP_COMPRESSION,
+            Imath.Compression.PIZ_COMPRESSION,
+            Imath.Compression.PXR24_COMPRESSION,
+            Imath.Compression.B44_COMPRESSION,
+            Imath.Compression.B44A_COMPRESSION,
+            Imath.Compression.DWAA_COMPRESSION,
+            Imath.Compression.DWAB_COMPRESSION):
+            h['compression'] = Imath.Compression(c)
+            out = OpenEXR.OutputFile("out.exr", h)
+            out.writePixels(newchannels)
+            out.close()
+            actual = OpenEXR.InputFile("out.exr").header()['compression']
+            self.assertEqual(actual, Imath.Compression(c))
+
 if __name__ == '__main__':
     if 1:
         unittest.main()
