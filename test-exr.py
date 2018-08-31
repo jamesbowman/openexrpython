@@ -260,23 +260,30 @@ class TestDirected(unittest.TestCase):
         channels = h['channels'].keys()
         newchannels = dict(zip(channels, infile.channels(channels)))
 
-        for c in (
+        compressions = [
             Imath.Compression.NO_COMPRESSION,
             Imath.Compression.RLE_COMPRESSION,
             Imath.Compression.ZIPS_COMPRESSION,
             Imath.Compression.ZIP_COMPRESSION,
             Imath.Compression.PIZ_COMPRESSION,
-            Imath.Compression.PXR24_COMPRESSION,
-            Imath.Compression.B44_COMPRESSION,
-            Imath.Compression.B44A_COMPRESSION,
-            Imath.Compression.DWAA_COMPRESSION,
-            Imath.Compression.DWAB_COMPRESSION):
+            Imath.Compression.PXR24_COMPRESSION]
+        if OpenEXR.OPENEXR_VERSION_HEX >= 0x02020000:
+            compressions += [
+                Imath.Compression.B44_COMPRESSION,
+                Imath.Compression.B44A_COMPRESSION,
+                Imath.Compression.DWAA_COMPRESSION,
+                Imath.Compression.DWAB_COMPRESSION]
+        for c in compressions:
             h['compression'] = Imath.Compression(c)
             out = OpenEXR.OutputFile("out.exr", h)
             out.writePixels(newchannels)
             out.close()
             actual = OpenEXR.InputFile("out.exr").header()['compression']
             self.assertEqual(actual, Imath.Compression(c))
+
+    def test_version(self):
+        self.assertTrue(OpenEXR.__version__ != None)
+        self.assertTrue(OpenEXR.OPENEXR_VERSION_HEX != None)
 
 if __name__ == '__main__':
     if 1:
