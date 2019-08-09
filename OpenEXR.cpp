@@ -58,6 +58,7 @@ typedef int Py_ssize_t;
 #include <ImfStringAttribute.h>
 #include <ImfTileDescriptionAttribute.h>
 #include <ImfTiledOutputFile.h>
+#include <ImfTiledInputFile.h>
 #include <ImfTimeCodeAttribute.h>
 #include <ImfVecAttribute.h>
 #include <ImfVersion.h>
@@ -228,6 +229,26 @@ C_OStream::clear ()
 }
 
 
+
+
+size_t compute_typesize(PixelType pt)
+{
+  // Use pt to compute typeSize
+  switch (pt) {
+  case HALF:
+    return 2;
+    break;
+    
+  case FLOAT:
+  case UINT:
+    return 4;
+    break;
+    
+  default:
+    return -1;
+  }
+}
+
 ////////////////////////////////////////////////////////////////////////
 //    TiledInputFile
 ////////////////////////////////////////////////////////////////////////
@@ -257,7 +278,7 @@ static PyObject *channels_tiled(PyObject *self, PyObject *args, PyObject *kw)
   int tile_maxx=numXTiles-1;
   int tile_maxy=numYTiles-1;
 
-  char *cname;
+  PyObject *clist;
   PyObject *pixel_type = NULL;
   char *keywords[] = { (char*)"cnames", (char*)"pixel_type", (char*)"tilex_min", (char*)"tilex_max", (char*) "tiley_min", (char*) "tiley_max", NULL };
   if (!PyArg_ParseTupleAndKeywords(args, kw, "O|Oiiii", keywords, &clist, &pixel_type, &tile_minx, &tile_maxx, &tile_miny, &tile_maxy))
@@ -453,23 +474,6 @@ static PyObject *channel(PyObject *self, PyObject *args, PyObject *kw)
     }
 
     return r;
-}
-
-size_t compute_typesize(PixelType pt)
-{
-  // Use pt to compute typeSize
-  switch (pt) {
-  case HALF:
-    return 2;
-    break;
-
-  case FLOAT:
-  case UINT:
-    return 4;
-    break;
-
-  default:
-    return -1
 }
 
 static PyObject *channels(PyObject *self, PyObject *args, PyObject *kw)
