@@ -367,9 +367,27 @@ static PyObject *channels_tiled(PyObject *self, PyObject *args, PyObject *kw)
   catch (const std::exception &e)
     {
       PyErr_SetString(PyExc_IOError, e.what());
+      return NULL;
     }
+  return retval;
 }
 
+static PyObject *inclose_tiled(PyObject *self, PyObject *args)
+{
+  TiledInputFileC *pc = ((TiledInputFileC *)self);
+  if (pc->is_opened) {
+    pc->is_opened = 0;
+    TiledInputFile *file = &((TiledInputFileC *)self)->i;
+    file->~TiledInputFile();
+  }
+  Py_RETURN_NONE;
+}
+
+static PyObject *isComplete_tiled(PyObject *self, PyObject *args)
+{
+    TiledInputFile *file = &((TiledInputFileC *)self)->i;
+    return PyBool_FromLong(file->isComplete());
+}
 
 ////////////////////////////////////////////////////////////////////////
 //    InputFile
@@ -774,19 +792,34 @@ static PyObject *inheader(PyObject *self, PyObject *args)
     return dict_from_header(file->header());
 }
 
+static PyObject *inheader_tiled(PyObject *self, PyObject *args)
+{
+    TiledInputFile *file = &((TiledInputFileC *)self)->i;
+    return dict_from_header(file->header());
+}
+
 static PyObject *isComplete(PyObject *self, PyObject *args)
 {
     InputFile *file = &((InputFileC *)self)->i;
     return PyBool_FromLong(file->isComplete());
 }
 
-/* Method table */
+/* Method tables */
 static PyMethodDef InputFile_methods[] = {
   {"header", inheader, METH_VARARGS},
   {"channel", (PyCFunction)channel, METH_VARARGS | METH_KEYWORDS},
   {"channels", (PyCFunction)channels, METH_VARARGS | METH_KEYWORDS},
   {"close", inclose, METH_VARARGS},
   {"isComplete", isComplete, METH_VARARGS},
+  {NULL, NULL},
+};
+
+static PyMethodDef TiledInputFile_methods[] = {
+  {"header", inheader_tiled, METH_VARARGS},
+  //{"channel", (PyCFunction)channel, METH_VARARGS | METH_KEYWORDS},
+  {"channels", (PyCFunction)channels_tiled, METH_VARARGS | METH_KEYWORDS},
+  {"close", inclose_tiled, METH_VARARGS},
+  {"isComplete", isComplete_tiled, METH_VARARGS},
   {NULL, NULL},
 };
 
@@ -800,6 +833,16 @@ InputFile_dealloc(PyObject *self)
     PyObject_Del(self);
 }
 
+static void
+TiledInputFile_dealloc(PyObject *self)
+{
+    TiledInputFileC *object = ((TiledInputFileC *)self);
+    if (object->fo)
+        Py_DECREF(object->fo);
+    Py_DECREF(inclose_tiled(self, NULL));
+    PyObject_Del(self);
+}
+
 static PyObject *
 InputFile_Repr(PyObject *self)
 {
@@ -807,6 +850,16 @@ InputFile_Repr(PyObject *self)
     char buf[50];
 
     sprintf(buf, "InputFile represented");
+    return PyUnicode_FromString(buf);
+}
+
+static PyObject *
+TiledInputFile_Repr(PyObject *self)
+{
+    //PyObject *result = NULL;
+    char buf[50];
+
+    sprintf(buf, "TiledInputFile represented");
     return PyUnicode_FromString(buf);
 }
 
@@ -849,6 +902,45 @@ static PyTypeObject InputFile_Type = {
     /* the rest are NULLs */
 };
 
+static PyTypeObject TiledInputFile_Type = {
+    PyVarObject_HEAD_INIT(&PyType_Type, 0)
+    "OpenEXR.InputFile",
+    sizeof(TiledInputFileC),
+    0,
+    (destructor)TiledInputFile_dealloc,
+    0,
+    0,
+    0,
+    0,
+    (reprfunc)TiledInputFile_Repr,
+    0, //&InputFile_as_number,
+    0, //&InputFile_as_sequence,
+    0,
+
+    0,
+    0,
+    0,
+    0,
+    0,
+    
+    0,
+    
+    Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE,
+
+    "OpenEXR Tiled Input file object",
+
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+
+    TiledInputFile_methods
+
+    /* the rest are NULLs */
+};
+
 int makeInputFile(PyObject *self, PyObject *args, PyObject *kwds)
 {
     InputFileC *object = ((InputFileC *)self);
@@ -879,6 +971,48 @@ int makeInputFile(PyObject *self, PyObject *args, PyObject *kwds)
           new(&object->i) InputFile(filename);
         else
           new(&object->i) InputFile(*object->istream);
+    }
+    catch (const std::exception &e)
+    {
+       // Py_DECREF(object);
+       PyErr_SetString(PyExc_IOError, e.what());
+       return -1;
+    }
+    object->is_opened = 1;
+
+    return 0;
+}
+
+int makeTiledInputFile(PyObject *self, PyObject *args, PyObject *kwds)
+{
+    TiledInputFileC *object = ((TiledInputFileC *)self);
+    PyObject *fo;
+    char *filename = NULL;
+
+    if (PyArg_ParseTuple(args, "O:TiledInputFile", &fo)) {
+      if (PyString_Check(fo)) {
+          filename = PyString_AsString(fo);
+          object->fo = NULL;
+          object->istream = NULL;
+      } else if (PyUnicode_Check(fo)) {
+          filename = PyUTF8_AsSstring(fo);
+          object->fo = NULL;
+          object->istream = NULL;
+      } else {
+          object->fo = fo;
+          Py_INCREF(fo);
+          object->istream = new C_IStream(fo);
+      }
+    } else {
+       return -1;
+    }
+
+    try
+    {
+        if (filename != NULL)
+          new(&object->i) TiledInputFile(filename);
+        else
+          new(&object->i) TiledInputFile(*object->istream);
     }
     catch (const std::exception &e)
     {
@@ -1067,8 +1201,8 @@ static PyTypeObject OutputFile_Type = {
     0,
     0,
     (reprfunc)OutputFile_Repr,
-    0, //&InputFile_as_number,
-    0, //&InputFile_as_sequence,
+    0, 
+    0, 
     0,
 
     0,
@@ -1351,14 +1485,19 @@ MOD_INIT(OpenEXR)
 
     /* initialize module variables/constants */
     InputFile_Type.tp_new = PyType_GenericNew;
+    TiledInputFile_Type.tp_new = PyType_GenericNew;
     InputFile_Type.tp_init = makeInputFile;
+    TiledInputFile_Type.tp_init = makeTiledInputFile;
     OutputFile_Type.tp_new = PyType_GenericNew;
     OutputFile_Type.tp_init = makeOutputFile;
     if (PyType_Ready(&InputFile_Type) != 0)
         return MOD_ERROR_VAL;
+    if (PyType_Ready(&TiledInputFile_Type) != 0)
+        return MOD_ERROR_VAL;
     if (PyType_Ready(&OutputFile_Type) != 0)
         return MOD_ERROR_VAL;
     PyModule_AddObject(m, "InputFile", (PyObject *)&InputFile_Type);
+    PyModule_AddObject(m, "TiledInputFile", (PyObject *)&TiledInputFile_Type);
     PyModule_AddObject(m, "OutputFile", (PyObject *)&OutputFile_Type);
 
 #if PYTHON_API_VERSION >= 1007
