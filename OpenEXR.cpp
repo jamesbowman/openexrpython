@@ -1058,6 +1058,10 @@ static void releaseviews(std::vector<Py_buffer> &views)
 
 static PyObject *outwrite(PyObject *self, PyObject *args)
 {
+    if (!((OutputFileC *)self)->is_opened) {
+	PyErr_SetString(PyExc_OSError, "cannot write to closed file");
+	return NULL
+    }
     OutputFile *file = &((OutputFileC *)self)->o;
 
     // long height = PyLong_AsLong(PyTuple_GetItem(args, 1));
@@ -1159,6 +1163,10 @@ static PyObject *outwrite(PyObject *self, PyObject *args)
 
 static PyObject *outcurrentscanline(PyObject *self, PyObject *args)
 {
+    if (!((OutputFileC *)self)->is_opened) {
+	PyErr_SetString(PyExc_OSError, "cannot write to closed file");
+	return NULL
+    }
     OutputFile *file = &((OutputFileC *)self)->o;
     return PyLong_FromLong(file->currentScanLine());
 }
