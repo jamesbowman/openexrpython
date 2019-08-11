@@ -904,7 +904,7 @@ static PyTypeObject InputFile_Type = {
 
 static PyTypeObject TiledInputFile_Type = {
     PyVarObject_HEAD_INIT(&PyType_Type, 0)
-    "OpenEXR.InputFile",
+    "OpenEXR.TiledInputFile",
     sizeof(TiledInputFileC),
     0,
     (destructor)TiledInputFile_dealloc,
