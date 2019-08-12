@@ -100,6 +100,118 @@ Available Types
        (Another program may still be busy writing the file, or file
        writing may have been aborted prematurely.)
 
+.. class:: TiledInputFile(file)
+
+   The :class:`TiledInputFile` object is used to read a tiled EXR file, with special methods for extracting sub-regions.
+
+   .. doctest::
+      :options: -ELLIPSIS, +NORMALIZE_WHITESPACE
+
+      >>> import OpenEXR
+      >>> print len(OpenEXR.TiledInputFile("GoldenGate.exr").channel('R', tilex_min=2, tilex_max=5, tiley_min=0, tiley_max=3)), "bytes of red data"
+      524288 bytes of red data
+
+   The following data items and methods are supported:
+
+   .. method:: TiledInputFile.header() -> dict
+
+      Return the header of the open file. The header is a dictionary, see :ref:`headers`.
+
+   .. index:: format, string, pixel_type
+
+   .. method:: channel(cname[, pixel_type[, tilex_min[, tilex_max[, tiley_min[, tiley_max]]]]]) -> string
+
+       Read a channel from the tiled OpenEXR image.
+
+       :param cname: the name of the channel in the image, for example "R".
+       :type cname: str
+       :param pixel_type: desired pixel type of returned channel data.  If not
+           specified, the channel's pixel data is returned in the format
+           specified in the header.
+       :type pixel_type: :class:`Imath.PixelType`
+       :param tilex_min: minimum X tile index
+       :type tilex_min: int
+       :param tilex_max: maximum X tile index
+       :type tilex_max: int
+       :param tiley_min: minimum Y tile index
+       :type tiley_min: int
+       :param tiley_max: maximum Y tile index
+       :type tiley_max: int
+
+       This method returns
+       channel data in the format specified by *pixel_type*.
+       If *tilex_min*, *tilex_max*, *tiley_min*, and *tiley_max* are not supplied,
+       then the method reads the entire image. Note that this method returns
+       the channel data as a Python string: the caller must then convert
+       it to the appropriate format as necessary.
+
+   .. method:: channels(cnames[, pixel_type[, tilex_min[, tilex_max[, tiley_min[, tiley_max]]]]]) -> strings
+
+       Multiple-channel version of :meth:`channel`.
+
+       :param cnames: the names of the channel in the image, for example "R".
+       :type cnames: iterator yielding str
+       :param pixel_type: desired pixel type of returned channel data.  If not
+           specified, the channel's pixel data is returned in the format
+           specified in the header.
+       :type pixel_type: :class:`Imath.PixelType`
+       :param tilex_min: minimum X tile index
+       :type tilex_min: int
+       :param tilex_max: maximum X tile index
+       :type tilex_max: int
+       :param tiley_min: minimum Y tile index
+       :type tiley_min: int
+       :param tiley_max: maximum Y tile index
+       :type tiley_max: int
+
+       ``cnames`` is an iterator which specifies channels just as in the ``cname`` argument
+       of :meth:`channel`:
+
+       .. doctest::
+          :options: -ELLIPSIS, +NORMALIZE_WHITESPACE
+
+          >>> import OpenEXR
+          >>> golden = OpenEXR.TiledInputFile("GoldenGate.exr")
+          >>> (r, g, b) = golden.channels("RGB")
+          >>> print len(r), len(g), len(b)
+          2170640 2170640 2170640
+
+       When reading multi-channel images, this method is significantly
+       faster than reading single channels using calls to
+       :meth:`channel`.
+
+   .. index:: destructor, convenience, exit
+
+   .. method:: close()
+
+       Close the open file. Calling this method is mandatory, otherwise
+       the file will be incomplete.  However, as a convenience, the
+       object's destructor calls this method, so any open files are
+       automatically closed at program exit.
+
+   .. index:: complete
+
+   .. method:: isComplete()
+
+       isComplete() returns True if all pixels in the data window are
+       present in the input file, or False if any pixels are missing.
+       (Another program may still be busy writing the file, or file
+       writing may have been aborted prematurely.)
+
+   .. method:: numXTiles([lx]) -> int
+
+       Return the number of tiles in the X direction at level *ly*.
+
+       :param lx: level, 0 by default
+       :type lx: int
+
+   .. method:: numYTiles([ly] -> int
+
+       Return the number of tiles in the Y direction at level *ly*.
+
+       :param ly: level, 0 by default
+       :type ly: int
+       
 .. class:: OutputFile(file, header)
 
    Creates the EXR file *filename*, with given *header*.
