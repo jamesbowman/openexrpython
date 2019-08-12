@@ -22,6 +22,38 @@ class point(object):
         return repr((self.x, self.y))
     def __eq__(self, other):
         return (self.x, self.y) == (other.x, other.y)
+    def __add__(self, o):
+        return point(self.x + o.x, self.y + o.y)
+    def __iadd__(self, o):
+        self.x += o.x
+        self.y += o.y
+        return self
+    def __sub__(self, o):
+        return point(self.x - o.x, self.y - o.y)
+    def __isub__(self, o):
+        self.x -= o.x
+        self.y -= o.y
+        return self
+    def __neg__(self):
+        return point(-self.x, -self.y)
+    def __mul__(self, o):
+        return point(self.x*o.x, self.y*o.y)
+    def __imul__(self, o):
+        self.x *= o.x
+        self.y *= o.y
+        return self
+    def __truediv__(self, o):
+        return point(self.x/o.x, self.y/o.y)
+    def __itruediv__(self, o):
+        self.x /= o.x
+        self.y /= o.y
+        return self
+    def __floordiv__(self, o):
+        return point(self.x//o.x, self.y//o.y)
+    def __ifloordiv__(self, o):
+        self.x //= o.x
+        self.y //= o.y
+        return self
 
 class V2i(point):
     """V2i is a 2D point, with members *x* and *y*."""
