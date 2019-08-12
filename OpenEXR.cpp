@@ -358,7 +358,7 @@ static PyObject *channel_tiled(PyObject *self, PyObject *args, PyObject *kw)
     }
     catch (const std::exception &e)
     {
-       PyErr_SetString(PyExc_IOError, e.what());
+       PyErr_SetString(PyExc_OSError, e.what());
        return NULL;
     }
 
@@ -461,7 +461,7 @@ static PyObject *channels_tiled(PyObject *self, PyObject *args, PyObject *kw)
 	    }
 	catch (const std::exception &e)
 	    {
-		PyErr_SetString(PyExc_IOError, e.what());
+		PyErr_SetString(PyExc_OSError, e.what());
 		return NULL;
 	    }
 	Py_DECREF(item);
@@ -723,7 +723,7 @@ static PyObject *channels(PyObject *self, PyObject *args, PyObject *kw)
       }
       catch (const std::exception &e)
       {
-         PyErr_SetString(PyExc_IOError, e.what());
+         PyErr_SetString(PyExc_OSError, e.what());
          return NULL;
       }
       Py_DECREF(item);
@@ -1129,7 +1129,7 @@ int makeInputFile(PyObject *self, PyObject *args, PyObject *kwds)
     catch (const std::exception &e)
     {
        // Py_DECREF(object);
-       PyErr_SetString(PyExc_IOError, e.what());
+       PyErr_SetString(PyExc_OSError, e.what());
        return -1;
     }
     object->is_opened = 1;
@@ -1171,7 +1171,7 @@ int makeTiledInputFile(PyObject *self, PyObject *args, PyObject *kwds)
     catch (const std::exception &e)
     {
        // Py_DECREF(object);
-       PyErr_SetString(PyExc_IOError, e.what());
+       PyErr_SetString(PyExc_OSError, e.what());
        return -1;
     }
     object->is_opened = 1;
@@ -1296,7 +1296,7 @@ static PyObject *outwrite(PyObject *self, PyObject *args)
     catch (const std::exception &e)
     {
         releaseviews(views);
-        PyErr_SetString(PyExc_IOError, e.what());
+        PyErr_SetString(PyExc_OSError, e.what());
         return NULL;
     }
     releaseviews(views);
@@ -1572,7 +1572,7 @@ int makeOutputFile(PyObject *self, PyObject *args, PyObject *kwds)
     }
     catch (const std::exception &e)
     {
-        PyErr_SetString(PyExc_IOError, e.what());
+        PyErr_SetString(PyExc_OSError, e.what());
         return -1;
     }
     object->is_opened = 1;
