@@ -387,6 +387,34 @@ static PyObject *inclose_tiled(PyObject *self, PyObject *args)
     Py_RETURN_NONE;
 }
 
+static PyObject *tiles_x(PyObject *self, PyObject *args)
+{
+    int level = 0;
+    if (!PyArg_ParseTuple(args, "|i", &level))
+	return NULL;
+    if (!((TiledInputFileC *)self)->is_opened) {
+	PyErr_SetString(PyExc_OSError, "file is closed");
+	return NULL;
+    }
+    TiledInputFile *file = &((TiledInputFileC *)self)->i;
+    int n = file->numXTiles(level);
+    return PyLong_FromLong(n);
+}
+
+static PyObject *tiles_y(PyObject *self, PyObject *args)
+{
+    int level = 0;
+    if (!PyArg_ParseTuple(args, "|i", &level))
+	return NULL;
+    if (!((TiledInputFileC *)self)->is_opened) {
+	PyErr_SetString(PyExc_OSError, "file is closed");
+	return NULL;
+    }
+    TiledInputFile *file = &((TiledInputFileC *)self)->i;
+    int n = file->numYTiles(level);
+    return PyLong_FromLong(n);
+}
+
 static PyObject *isComplete_tiled(PyObject *self, PyObject *args)
 {
     TiledInputFile *file = &((TiledInputFileC *)self)->i;
@@ -800,12 +828,20 @@ static PyObject *dict_from_header(Header h)
 
 static PyObject *inheader(PyObject *self, PyObject *args)
 {
+    if (!((InputFileC *)self)->is_opened) {
+	PyErr_SetString(PyExc_OSError, "cannot read header from closed file");
+	return NULL;
+    }
     InputFile *file = &((InputFileC *)self)->i;
     return dict_from_header(file->header());
 }
 
 static PyObject *inheader_tiled(PyObject *self, PyObject *args)
 {
+    if (!((TiledInputFileC *)self)->is_opened) {
+	PyErr_SetString(PyExc_OSError, "cannot read header from closed file");
+	return NULL;
+    }
     TiledInputFile *file = &((TiledInputFileC *)self)->i;
     return dict_from_header(file->header());
 }
@@ -830,6 +866,8 @@ static PyMethodDef TiledInputFile_methods[] = {
   {"header", inheader_tiled, METH_VARARGS},
   //{"channel", (PyCFunction)channel, METH_VARARGS | METH_KEYWORDS},
   {"channels", (PyCFunction)channels_tiled, METH_VARARGS | METH_KEYWORDS},
+  {"numXTiles", tiles_x, METH_VARARGS},
+  {"numYTiles", tiles_y, METH_VARARGS},
   {"close", inclose_tiled, METH_VARARGS},
   {"isComplete", isComplete_tiled, METH_VARARGS},
   {NULL, NULL},
@@ -1060,7 +1098,7 @@ static PyObject *outwrite(PyObject *self, PyObject *args)
 {
     if (!((OutputFileC *)self)->is_opened) {
 	PyErr_SetString(PyExc_OSError, "cannot write to closed file");
-	return NULL
+	return NULL;
     }
     OutputFile *file = &((OutputFileC *)self)->o;
 
@@ -1165,7 +1203,7 @@ static PyObject *outcurrentscanline(PyObject *self, PyObject *args)
 {
     if (!((OutputFileC *)self)->is_opened) {
 	PyErr_SetString(PyExc_OSError, "cannot write to closed file");
-	return NULL
+	return NULL;
     }
     OutputFile *file = &((OutputFileC *)self)->o;
     return PyLong_FromLong(file->currentScanLine());
