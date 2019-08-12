@@ -205,7 +205,7 @@ Available Types
        :param lx: level, 0 by default
        :type lx: int
 
-   .. method:: numYTiles([ly] -> int
+   .. method:: numYTiles([ly]) -> int
 
        Return the number of tiles in the Y direction at level *ly*.
 
