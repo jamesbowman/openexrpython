@@ -501,7 +501,16 @@ static PyObject *tiles_x(PyObject *self, PyObject *args)
 	return NULL;
     }
     TiledInputFile *file = &((TiledInputFileC *)self)->i;
-    int n = file->numXTiles(level);
+    int n;
+    try
+	{
+	    n = file->numXTiles(level);
+	}
+    catch (const std::exception &e)
+	{
+	    PyErr_SetString(PyExc_OSError, e.what());
+	    return NULL;
+	}
     return PyLong_FromLong(n);
 }
 
@@ -515,7 +524,16 @@ static PyObject *tiles_y(PyObject *self, PyObject *args)
 	return NULL;
     }
     TiledInputFile *file = &((TiledInputFileC *)self)->i;
-    int n = file->numYTiles(level);
+    int n;
+    try
+	{
+	    n = file->numYTiles(level);
+	}
+    catch (const std::exception &e)
+	{
+	    PyErr_SetString(PyExc_OSError, e.what());
+	    return NULL;
+	}
     return PyLong_FromLong(n);
 }
 
