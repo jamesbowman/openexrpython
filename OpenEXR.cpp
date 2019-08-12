@@ -261,6 +261,110 @@ typedef struct {
     int is_opened;
 } TiledInputFileC;
 
+static PyObject *channel_tiled(PyObject *self, PyObject *args, PyObject *kw)
+{
+    if (!((TiledInputFileC *)self)->is_opened) {
+	PyErr_SetString(PyExc_OSError, "cannot read from closed file");
+	return NULL;
+    }
+    TiledInputFile *file = &((TiledInputFileC *)self)->i;
+
+    Box2i dw = file->header().dataWindow();
+
+    int numXTiles = file->numXTiles();
+    int numYTiles = file->numYTiles();
+
+    int tileXSize = file->tileXSize();
+    int tileYSize = file->tileYSize();
+
+    int tile_minx=0;
+    int tile_miny=0;
+    int tile_maxx=numXTiles-1;
+    int tile_maxy=numYTiles-1;
+
+    char *cname;
+    PyObject *pixel_type = NULL;
+    char *keywords[] = { (char*)"cname", (char*)"pixel_type", (char*)"tilex_min", (char*)"tilex_max", (char*) "tiley_min", (char*) "tiley_max", NULL };
+    if (!PyArg_ParseTupleAndKeywords(args, kw, "s|Oiiii", keywords, &cname, &pixel_type, &tile_minx, &tile_maxx, &tile_miny, &tile_maxy))
+        return NULL;
+
+    if (tile_maxy < tile_miny) {
+	PyErr_SetString(PyExc_TypeError, "TileY_max must be >= TileY_min");
+	return NULL;
+    }
+    if (tile_maxx < tile_minx) {
+	PyErr_SetString(PyExc_TypeError, "TileX_max must be >= TileX_min");
+	return NULL;
+    }
+
+    ChannelList channels = file->header().channels();
+    Channel *channelPtr = channels.findChannel(cname);
+    if (channelPtr == NULL) {
+        return PyErr_Format(PyExc_TypeError, "There is no channel '%s' in the image", cname);
+    }
+
+    Imf::PixelType pt;
+    if (pixel_type != NULL) {
+        if (PyObject_GetAttrString(pixel_type,"v") == NULL) {
+            return PyErr_Format(PyExc_TypeError, "Invalid PixelType object");
+        }
+        pt = PixelType(PyLong_AsLong(PyObject_StealAttrString(pixel_type, "v")));
+    } else {
+        pt = channelPtr->type;
+    }
+
+    int xSampling = channelPtr->xSampling;
+    int ySampling = channelPtr->ySampling;
+
+    int width = std::min((tile_maxx+1)*tileXSize, dw.max.x - dw.min.x + 1) - tile_minx * tileXSize;
+    int height = std::min((tile_maxy+1)*tileYSize, dw.max.y - dw.min.y + 1) - tile_miny * tileYSize;
+    width /= xSampling;
+    height /= ySampling;
+
+    size_t typeSize;
+    switch (pt) {
+    case HALF:
+        typeSize = 2;
+        break;
+
+    case FLOAT:
+    case UINT:
+        typeSize = 4;
+        break;
+
+    default:
+        PyErr_SetString(PyExc_TypeError, "Unknown type");
+        return NULL;
+    }
+    PyObject *r = PyString_FromStringAndSize(NULL, typeSize * width * height);
+
+    char *pixels = PyString_AsString(r);
+
+    try
+    {
+        FrameBuffer frameBuffer;
+        size_t xstride = typeSize;
+        size_t ystride = typeSize * width;
+        frameBuffer.insert(cname,
+                           Slice(pt,
+                                 pixels - (dw.min.x + tile_minx * tileXSize) * xstride / xSampling - (dw.min.y + tile_miny * tileYSize) * ystride / ySampling,
+                                 xstride,
+                                 ystride,
+                                 xSampling, ySampling,
+                                 0.0));
+        file->setFrameBuffer(frameBuffer);
+	file->readTiles(tile_minx, tile_maxx, tile_miny, tile_maxy);
+	return r;
+    }
+    catch (const std::exception &e)
+    {
+       PyErr_SetString(PyExc_IOError, e.what());
+       return NULL;
+    }
+
+    return r;
+}
+
 static PyObject *channels_tiled(PyObject *self, PyObject *args, PyObject *kw)
 {
     if (!((TiledInputFileC *)self)->is_opened) {
@@ -370,7 +474,7 @@ static PyObject *channels_tiled(PyObject *self, PyObject *args, PyObject *kw)
 	}
     catch (const std::exception &e)
 	{
-	    PyErr_SetString(PyExc_IOError, e.what());
+	    PyErr_SetString(PyExc_OSError, e.what());
 	    return NULL;
 	}
     return retval;
@@ -523,7 +627,7 @@ static PyObject *channel(PyObject *self, PyObject *args, PyObject *kw)
     }
     catch (const std::exception &e)
     {
-       PyErr_SetString(PyExc_IOError, e.what());
+       PyErr_SetString(PyExc_OSError, e.what());
        return NULL;
     }
 
@@ -864,7 +968,7 @@ static PyMethodDef InputFile_methods[] = {
 
 static PyMethodDef TiledInputFile_methods[] = {
   {"header", inheader_tiled, METH_VARARGS},
-  //{"channel", (PyCFunction)channel, METH_VARARGS | METH_KEYWORDS},
+  {"channel", (PyCFunction)channel_tiled, METH_VARARGS | METH_KEYWORDS},
   {"channels", (PyCFunction)channels_tiled, METH_VARARGS | METH_KEYWORDS},
   {"numXTiles", tiles_x, METH_VARARGS},
   {"numYTiles", tiles_y, METH_VARARGS},
