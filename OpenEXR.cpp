@@ -321,21 +321,8 @@ static PyObject *channel_tiled(PyObject *self, PyObject *args, PyObject *kw)
     width /= xSampling;
     height /= ySampling;
 
-    size_t typeSize;
-    switch (pt) {
-    case HALF:
-        typeSize = 2;
-        break;
-
-    case FLOAT:
-    case UINT:
-        typeSize = 4;
-        break;
-
-    default:
-        PyErr_SetString(PyExc_TypeError, "Unknown type");
-        return NULL;
-    }
+    size_t typeSize = compute_typesize(pt);
+    
     PyObject *r = PyString_FromStringAndSize(NULL, typeSize * width * height);
 
     char *pixels = PyString_AsString(r);
@@ -609,21 +596,8 @@ static PyObject *channel(PyObject *self, PyObject *args, PyObject *kw)
     int width  = (dw.max.x - dw.min.x + 1) / xSampling;
     int height = (maxy - miny + 1) / ySampling;
 
-    size_t typeSize;
-    switch (pt) {
-    case HALF:
-        typeSize = 2;
-        break;
+    size_t typeSize = compute_typesize(pt);
 
-    case FLOAT:
-    case UINT:
-        typeSize = 4;
-        break;
-
-    default:
-        PyErr_SetString(PyExc_TypeError, "Unknown type");
-        return NULL;
-    }
     PyObject *r = PyString_FromStringAndSize(NULL, typeSize * width * height);
 
     char *pixels = PyString_AsString(r);
@@ -1251,20 +1225,8 @@ static PyObject *outwrite(PyObject *self, PyObject *args)
         PyObject *channel_spec = PyDict_GetItem(pixeldata, PyUnicode_FromString(i.name()));
         if (channel_spec != NULL) {
             Imf::PixelType pt = i.channel().type;
-            int typeSize = 4;
-            switch (pt) {
-            case HALF:
-                typeSize = 2;
-                break;
-
-            case FLOAT:
-            case UINT:
-                typeSize = 4;
-                break;
-
-            default:
-                break;
-            }
+	    int typeSize = (int) compute_typesize(pt);
+            if (typeSize < 0) typeSize = 4;
             int xSampling = i.channel().xSampling;
             int ySampling = i.channel().ySampling;
             int yStride = typeSize * width;
