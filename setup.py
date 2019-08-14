@@ -1,10 +1,21 @@
 from distutils.core import setup
 from distutils.extension import Extension
 from distutils.command.build_py import build_py as _build_py
-
-from os import system
+from distutils.sysconfig import get_config_var
+from distutils.version import LooseVersion
+import sys
+import os
+import platform
 
 from distutils.core import setup, Extension
+
+if sys.platform == 'darwin':
+    if 'MACOSX_DEPLOYMENT_TARGET' not in os.environ:
+        current_system = LooseVersion(platform.mac_ver()[0])
+        python_target = LooseVersion(
+            get_config_var('MACOSX_DEPLOYMENT_TARGET'))
+        if python_target < '10.9' and current_system >= '10.9':
+            os.environ['MACOSX_DEPLOYMENT_TARGET'] = '10.9'
 
 version = "1.3.2"
 setup(name='OpenEXR',
@@ -18,9 +29,9 @@ setup(name='OpenEXR',
     Extension('OpenEXR',
               ['OpenEXR.cpp'],
               include_dirs=['/usr/include/OpenEXR', '/usr/local/include/OpenEXR', '/opt/local/include/OpenEXR'],
-              library_dirs=['/usr/local/lib', '/opt/local/lib'],
+              library_dirs=['/usr/local/lib'],
               libraries=['Iex', 'Half', 'Imath', 'IlmImf', 'z'],
-              extra_compile_args=['-g', '-DVERSION="%s"' % version])
+              extra_compile_args=['-std=c++17','-g', '-DVERSION="%s"' % version])
   ],
   py_modules=['Imath'],
 )
