@@ -29,6 +29,13 @@ class TestDirected(unittest.TestCase):
         oexr = OpenEXR.InputFile(filename)
         return oexr.channel('R')
 
+    def load_red_tiled(self, filename):
+        oexr = OpenEXR.InputFile(filename)
+        texr = OpenEXR.TiledInputFile(filename)
+        tr = texr.channel('R')
+        self.assertEqual(tr, oexr.channel('R'))
+        return tr
+
     def test_enumerants(self):
         self.assertEqual(Imath.LevelMode("ONE_LEVEL").v, Imath.LevelMode(Imath.LevelMode.ONE_LEVEL).v)
         self.assertEqual(Imath.LevelMode("MIPMAP_LEVELS").v, Imath.LevelMode(Imath.LevelMode.MIPMAP_LEVELS).v)

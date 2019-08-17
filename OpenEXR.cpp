@@ -58,6 +58,7 @@ typedef int Py_ssize_t;
 #include <ImfStringAttribute.h>
 #include <ImfTileDescriptionAttribute.h>
 #include <ImfTiledOutputFile.h>
+#include <ImfTiledInputFile.h>
 #include <ImfTimeCodeAttribute.h>
 #include <ImfVecAttribute.h>
 #include <ImfVersion.h>
@@ -227,6 +228,308 @@ C_OStream::clear ()
 {
 }
 
+
+
+
+size_t compute_typesize(PixelType pt)
+{
+  // Use pt to compute typeSize
+  switch (pt) {
+  case HALF:
+    return 2;
+    break;
+    
+  case FLOAT:
+  case UINT:
+    return 4;
+    break;
+    
+  default:
+    return -1;
+  }
+}
+
+////////////////////////////////////////////////////////////////////////
+//    TiledInputFile
+////////////////////////////////////////////////////////////////////////
+
+typedef struct {
+    PyObject_HEAD
+    TiledInputFile i;
+    PyObject *fo;
+    C_IStream *istream;
+    int is_opened;
+} TiledInputFileC;
+
+static PyObject *channel_tiled(PyObject *self, PyObject *args, PyObject *kw)
+{
+    if (!((TiledInputFileC *)self)->is_opened) {
+	PyErr_SetString(PyExc_OSError, "cannot read from closed file");
+	return NULL;
+    }
+    TiledInputFile *file = &((TiledInputFileC *)self)->i;
+
+    Box2i dw = file->header().dataWindow();
+
+    int numXTiles = file->numXTiles();
+    int numYTiles = file->numYTiles();
+
+    int tileXSize = file->tileXSize();
+    int tileYSize = file->tileYSize();
+
+    int tile_minx=0;
+    int tile_miny=0;
+    int tile_maxx=numXTiles-1;
+    int tile_maxy=numYTiles-1;
+
+    char *cname;
+    PyObject *pixel_type = NULL;
+    char *keywords[] = { (char*)"cname", (char*)"pixel_type", (char*)"tilex_min", (char*)"tilex_max", (char*) "tiley_min", (char*) "tiley_max", NULL };
+    if (!PyArg_ParseTupleAndKeywords(args, kw, "s|Oiiii", keywords, &cname, &pixel_type, &tile_minx, &tile_maxx, &tile_miny, &tile_maxy))
+        return NULL;
+
+    if (tile_maxy < tile_miny) {
+	PyErr_SetString(PyExc_TypeError, "TileY_max must be >= TileY_min");
+	return NULL;
+    }
+    if (tile_maxx < tile_minx) {
+	PyErr_SetString(PyExc_TypeError, "TileX_max must be >= TileX_min");
+	return NULL;
+    }
+
+    ChannelList channels = file->header().channels();
+    Channel *channelPtr = channels.findChannel(cname);
+    if (channelPtr == NULL) {
+        return PyErr_Format(PyExc_TypeError, "There is no channel '%s' in the image", cname);
+    }
+
+    Imf::PixelType pt;
+    if (pixel_type != NULL) {
+        if (PyObject_GetAttrString(pixel_type,"v") == NULL) {
+            return PyErr_Format(PyExc_TypeError, "Invalid PixelType object");
+        }
+        pt = PixelType(PyLong_AsLong(PyObject_StealAttrString(pixel_type, "v")));
+    } else {
+        pt = channelPtr->type;
+    }
+
+    int xSampling = channelPtr->xSampling;
+    int ySampling = channelPtr->ySampling;
+
+    int width = std::min((tile_maxx+1)*tileXSize, dw.max.x - dw.min.x + 1) - tile_minx * tileXSize;
+    int height = std::min((tile_maxy+1)*tileYSize, dw.max.y - dw.min.y + 1) - tile_miny * tileYSize;
+    width /= xSampling;
+    height /= ySampling;
+
+    size_t typeSize = compute_typesize(pt);
+    
+    PyObject *r = PyString_FromStringAndSize(NULL, typeSize * width * height);
+
+    char *pixels = PyString_AsString(r);
+
+    try
+    {
+        FrameBuffer frameBuffer;
+        size_t xstride = typeSize;
+        size_t ystride = typeSize * width;
+        frameBuffer.insert(cname,
+                           Slice(pt,
+                                 pixels - (dw.min.x + tile_minx * tileXSize) * xstride / xSampling - (dw.min.y + tile_miny * tileYSize) * ystride / ySampling,
+                                 xstride,
+                                 ystride,
+                                 xSampling, ySampling,
+                                 0.0));
+        file->setFrameBuffer(frameBuffer);
+	file->readTiles(tile_minx, tile_maxx, tile_miny, tile_maxy);
+	return r;
+    }
+    catch (const std::exception &e)
+    {
+       PyErr_SetString(PyExc_OSError, e.what());
+       return NULL;
+    }
+
+    return r;
+}
+
+static PyObject *channels_tiled(PyObject *self, PyObject *args, PyObject *kw)
+{
+    if (!((TiledInputFileC *)self)->is_opened) {
+	PyErr_SetString(PyExc_OSError, "cannot read from closed file");
+	return NULL;
+    }
+    TiledInputFile *file = &((TiledInputFileC *)self)->i;
+
+    Box2i dw = file->header().dataWindow();
+
+    int numXTiles = file->numXTiles();
+    int numYTiles = file->numYTiles();
+
+    int tileXSize = file->tileXSize();
+    int tileYSize = file->tileYSize();
+
+    int tile_minx=0;
+    int tile_miny=0;
+    int tile_maxx=numXTiles-1;
+    int tile_maxy=numYTiles-1;
+
+    PyObject *clist;
+    PyObject *pixel_type = NULL;
+    char *keywords[] = { (char*)"cnames", (char*)"pixel_type", (char*)"tilex_min", (char*)"tilex_max", (char*) "tiley_min", (char*) "tiley_max", NULL };
+    if (!PyArg_ParseTupleAndKeywords(args, kw, "O|Oiiii", keywords, &clist, &pixel_type, &tile_minx, &tile_maxx, &tile_miny, &tile_maxy))
+	return NULL;
+    if (tile_maxy < tile_miny) {
+	PyErr_SetString(PyExc_TypeError, "TileY_max must be >= TileY_min");
+	return NULL;
+    }
+    if (tile_maxx < tile_minx) {
+	PyErr_SetString(PyExc_TypeError, "TileX_max must be >= TileX_min");
+	return NULL;
+    }
+
+    ChannelList channels = file->header().channels();
+    FrameBuffer frameBuffer;
+
+    int width = std::min((tile_maxx+1)*tileXSize, dw.max.x - dw.min.x + 1) - tile_minx * tileXSize;
+    int height = std::min((tile_maxy+1)*tileYSize, dw.max.y - dw.min.y + 1) - tile_miny * tileYSize;
+
+    PyObject *retval = PyList_New(0);
+    PyObject *iterator = PyObject_GetIter(clist);
+
+    if (iterator == NULL) {
+	PyErr_SetString(PyExc_TypeError, "Channel list must be iterable");
+	return NULL;
+    }
+
+    PyObject *item;
+
+    while ((item = PyIter_Next(iterator)) != NULL) {
+	char *cname = PyUTF8_AsSstring(item);
+	Channel *channelPtr = channels.findChannel(cname);
+	if (channelPtr == NULL) {
+	    return PyErr_Format(PyExc_TypeError, "There is no channel '%s' in the image", cname);
+	}
+
+	Imf::PixelType pt;
+	if (pixel_type != NULL) {
+	    pt = PixelType(PyLong_AsLong(PyObject_StealAttrString(pixel_type, "v")));
+	} else {
+	    pt = channelPtr->type;
+	}
+
+	// Use pt to compute typeSize
+	size_t typeSize = compute_typesize(pt);
+	if (typeSize < 0) {
+	    PyErr_SetString(PyExc_TypeError, "Unknown type");
+	    return NULL;
+	}
+
+	size_t xstride = typeSize;
+	size_t ystride = typeSize * width;
+
+	PyObject *r = PyString_FromStringAndSize(NULL, typeSize * width * height);
+	PyList_Append(retval, r);
+	Py_DECREF(r);
+	char *pixels = PyString_AsString(r);
+
+	try
+	    {
+		frameBuffer.insert(
+				   cname,
+				   Slice(
+					 pt,
+					 pixels - (dw.min.x + tile_minx * tileXSize) * xstride - (dw.min.y + tile_miny * tileYSize) * ystride,
+					 xstride,
+					 ystride,
+					 1,
+					 1,
+					 0.0
+					 ));
+	    }
+	catch (const std::exception &e)
+	    {
+		PyErr_SetString(PyExc_OSError, e.what());
+		return NULL;
+	    }
+	Py_DECREF(item);
+    }
+    Py_DECREF(iterator);
+    file->setFrameBuffer(frameBuffer);
+    try
+	{
+	    file->readTiles(tile_minx, tile_maxx, tile_miny, tile_maxy);
+	}
+    catch (const std::exception &e)
+	{
+	    PyErr_SetString(PyExc_OSError, e.what());
+	    return NULL;
+	}
+    return retval;
+}
+
+static PyObject *inclose_tiled(PyObject *self, PyObject *args)
+{
+    TiledInputFileC *pc = ((TiledInputFileC *)self);
+    if (pc->is_opened) {
+	pc->is_opened = 0;
+	TiledInputFile *file = &((TiledInputFileC *)self)->i;
+	file->~TiledInputFile();
+    }
+    Py_RETURN_NONE;
+}
+
+static PyObject *tiles_x(PyObject *self, PyObject *args)
+{
+    int level = 0;
+    if (!PyArg_ParseTuple(args, "|i", &level))
+	return NULL;
+    if (!((TiledInputFileC *)self)->is_opened) {
+	PyErr_SetString(PyExc_OSError, "file is closed");
+	return NULL;
+    }
+    TiledInputFile *file = &((TiledInputFileC *)self)->i;
+    int n;
+    try
+	{
+	    n = file->numXTiles(level);
+	}
+    catch (const std::exception &e)
+	{
+	    PyErr_SetString(PyExc_OSError, e.what());
+	    return NULL;
+	}
+    return PyLong_FromLong(n);
+}
+
+static PyObject *tiles_y(PyObject *self, PyObject *args)
+{
+    int level = 0;
+    if (!PyArg_ParseTuple(args, "|i", &level))
+	return NULL;
+    if (!((TiledInputFileC *)self)->is_opened) {
+	PyErr_SetString(PyExc_OSError, "file is closed");
+	return NULL;
+    }
+    TiledInputFile *file = &((TiledInputFileC *)self)->i;
+    int n;
+    try
+	{
+	    n = file->numYTiles(level);
+	}
+    catch (const std::exception &e)
+	{
+	    PyErr_SetString(PyExc_OSError, e.what());
+	    return NULL;
+	}
+    return PyLong_FromLong(n);
+}
+
+static PyObject *isComplete_tiled(PyObject *self, PyObject *args)
+{
+    TiledInputFile *file = &((TiledInputFileC *)self)->i;
+    return PyBool_FromLong(file->isComplete());
+}
+
 ////////////////////////////////////////////////////////////////////////
 //    InputFile
 ////////////////////////////////////////////////////////////////////////
@@ -241,6 +544,10 @@ typedef struct {
 
 static PyObject *channel(PyObject *self, PyObject *args, PyObject *kw)
 {
+    if (!((InputFileC *)self)->is_opened) {
+	PyErr_SetString(PyExc_OSError, "cannot read from closed file");
+	return NULL;
+    }
     InputFile *file = &((InputFileC *)self)->i;
 
     Box2i dw = file->header().dataWindow();
@@ -289,21 +596,8 @@ static PyObject *channel(PyObject *self, PyObject *args, PyObject *kw)
     int width  = (dw.max.x - dw.min.x + 1) / xSampling;
     int height = (maxy - miny + 1) / ySampling;
 
-    size_t typeSize;
-    switch (pt) {
-    case HALF:
-        typeSize = 2;
-        break;
+    size_t typeSize = compute_typesize(pt);
 
-    case FLOAT:
-    case UINT:
-        typeSize = 4;
-        break;
-
-    default:
-        PyErr_SetString(PyExc_TypeError, "Unknown type");
-        return NULL;
-    }
     PyObject *r = PyString_FromStringAndSize(NULL, typeSize * width * height);
 
     char *pixels = PyString_AsString(r);
@@ -325,7 +619,7 @@ static PyObject *channel(PyObject *self, PyObject *args, PyObject *kw)
     }
     catch (const std::exception &e)
     {
-       PyErr_SetString(PyExc_IOError, e.what());
+       PyErr_SetString(PyExc_OSError, e.what());
        return NULL;
     }
 
@@ -334,6 +628,10 @@ static PyObject *channel(PyObject *self, PyObject *args, PyObject *kw)
 
 static PyObject *channels(PyObject *self, PyObject *args, PyObject *kw)
 {
+    if (!((InputFileC *)self)->is_opened) {
+	PyErr_SetString(PyExc_OSError, "cannot read from closed file");
+	return NULL;
+    }
     InputFile *file = &((InputFileC *)self)->i;
 
     Box2i dw = file->header().dataWindow();
@@ -390,18 +688,8 @@ static PyObject *channels(PyObject *self, PyObject *args, PyObject *kw)
       }
 
       // Use pt to compute typeSize
-      size_t typeSize;
-      switch (pt) {
-      case HALF:
-          typeSize = 2;
-          break;
-
-      case FLOAT:
-      case UINT:
-          typeSize = 4;
-          break;
-
-      default:
+      size_t typeSize = compute_typesize(pt);
+      if (typeSize < 0) {
           PyErr_SetString(PyExc_TypeError, "Unknown type");
           return NULL;
       }
@@ -427,7 +715,7 @@ static PyObject *channels(PyObject *self, PyObject *args, PyObject *kw)
       }
       catch (const std::exception &e)
       {
-         PyErr_SetString(PyExc_IOError, e.what());
+         PyErr_SetString(PyExc_OSError, e.what());
          return NULL;
       }
       Py_DECREF(item);
@@ -636,7 +924,21 @@ static PyObject *dict_from_header(Header h)
 
 static PyObject *inheader(PyObject *self, PyObject *args)
 {
+    if (!((InputFileC *)self)->is_opened) {
+	PyErr_SetString(PyExc_OSError, "cannot read header from closed file");
+	return NULL;
+    }
     InputFile *file = &((InputFileC *)self)->i;
+    return dict_from_header(file->header());
+}
+
+static PyObject *inheader_tiled(PyObject *self, PyObject *args)
+{
+    if (!((TiledInputFileC *)self)->is_opened) {
+	PyErr_SetString(PyExc_OSError, "cannot read header from closed file");
+	return NULL;
+    }
+    TiledInputFile *file = &((TiledInputFileC *)self)->i;
     return dict_from_header(file->header());
 }
 
@@ -646,13 +948,24 @@ static PyObject *isComplete(PyObject *self, PyObject *args)
     return PyBool_FromLong(file->isComplete());
 }
 
-/* Method table */
+/* Method tables */
 static PyMethodDef InputFile_methods[] = {
   {"header", inheader, METH_VARARGS},
   {"channel", (PyCFunction)channel, METH_VARARGS | METH_KEYWORDS},
   {"channels", (PyCFunction)channels, METH_VARARGS | METH_KEYWORDS},
   {"close", inclose, METH_VARARGS},
   {"isComplete", isComplete, METH_VARARGS},
+  {NULL, NULL},
+};
+
+static PyMethodDef TiledInputFile_methods[] = {
+  {"header", inheader_tiled, METH_VARARGS},
+  {"channel", (PyCFunction)channel_tiled, METH_VARARGS | METH_KEYWORDS},
+  {"channels", (PyCFunction)channels_tiled, METH_VARARGS | METH_KEYWORDS},
+  {"numXTiles", tiles_x, METH_VARARGS},
+  {"numYTiles", tiles_y, METH_VARARGS},
+  {"close", inclose_tiled, METH_VARARGS},
+  {"isComplete", isComplete_tiled, METH_VARARGS},
   {NULL, NULL},
 };
 
@@ -666,6 +979,16 @@ InputFile_dealloc(PyObject *self)
     PyObject_Del(self);
 }
 
+static void
+TiledInputFile_dealloc(PyObject *self)
+{
+    TiledInputFileC *object = ((TiledInputFileC *)self);
+    if (object->fo)
+        Py_DECREF(object->fo);
+    Py_DECREF(inclose_tiled(self, NULL));
+    PyObject_Del(self);
+}
+
 static PyObject *
 InputFile_Repr(PyObject *self)
 {
@@ -673,6 +996,16 @@ InputFile_Repr(PyObject *self)
     char buf[50];
 
     sprintf(buf, "InputFile represented");
+    return PyUnicode_FromString(buf);
+}
+
+static PyObject *
+TiledInputFile_Repr(PyObject *self)
+{
+    //PyObject *result = NULL;
+    char buf[50];
+
+    sprintf(buf, "TiledInputFile represented");
     return PyUnicode_FromString(buf);
 }
 
@@ -715,6 +1048,45 @@ static PyTypeObject InputFile_Type = {
     /* the rest are NULLs */
 };
 
+static PyTypeObject TiledInputFile_Type = {
+    PyVarObject_HEAD_INIT(&PyType_Type, 0)
+    "OpenEXR.TiledInputFile",
+    sizeof(TiledInputFileC),
+    0,
+    (destructor)TiledInputFile_dealloc,
+    0,
+    0,
+    0,
+    0,
+    (reprfunc)TiledInputFile_Repr,
+    0, //&InputFile_as_number,
+    0, //&InputFile_as_sequence,
+    0,
+
+    0,
+    0,
+    0,
+    0,
+    0,
+    
+    0,
+    
+    Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE,
+
+    "OpenEXR Tiled Input file object",
+
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+
+    TiledInputFile_methods
+
+    /* the rest are NULLs */
+};
+
 int makeInputFile(PyObject *self, PyObject *args, PyObject *kwds)
 {
     InputFileC *object = ((InputFileC *)self);
@@ -749,7 +1121,49 @@ int makeInputFile(PyObject *self, PyObject *args, PyObject *kwds)
     catch (const std::exception &e)
     {
        // Py_DECREF(object);
-       PyErr_SetString(PyExc_IOError, e.what());
+       PyErr_SetString(PyExc_OSError, e.what());
+       return -1;
+    }
+    object->is_opened = 1;
+
+    return 0;
+}
+
+int makeTiledInputFile(PyObject *self, PyObject *args, PyObject *kwds)
+{
+    TiledInputFileC *object = ((TiledInputFileC *)self);
+    PyObject *fo;
+    char *filename = NULL;
+
+    if (PyArg_ParseTuple(args, "O:TiledInputFile", &fo)) {
+      if (PyString_Check(fo)) {
+          filename = PyString_AsString(fo);
+          object->fo = NULL;
+          object->istream = NULL;
+      } else if (PyUnicode_Check(fo)) {
+          filename = PyUTF8_AsSstring(fo);
+          object->fo = NULL;
+          object->istream = NULL;
+      } else {
+          object->fo = fo;
+          Py_INCREF(fo);
+          object->istream = new C_IStream(fo);
+      }
+    } else {
+       return -1;
+    }
+
+    try
+    {
+        if (filename != NULL)
+          new(&object->i) TiledInputFile(filename);
+        else
+          new(&object->i) TiledInputFile(*object->istream);
+    }
+    catch (const std::exception &e)
+    {
+       // Py_DECREF(object);
+       PyErr_SetString(PyExc_OSError, e.what());
        return -1;
     }
     object->is_opened = 1;
@@ -778,6 +1192,10 @@ static void releaseviews(std::vector<Py_buffer> &views)
 
 static PyObject *outwrite(PyObject *self, PyObject *args)
 {
+    if (!((OutputFileC *)self)->is_opened) {
+	PyErr_SetString(PyExc_OSError, "cannot write to closed file");
+	return NULL;
+    }
     OutputFile *file = &((OutputFileC *)self)->o;
 
     // long height = PyLong_AsLong(PyTuple_GetItem(args, 1));
@@ -807,20 +1225,8 @@ static PyObject *outwrite(PyObject *self, PyObject *args)
         PyObject *channel_spec = PyDict_GetItem(pixeldata, PyUnicode_FromString(i.name()));
         if (channel_spec != NULL) {
             Imf::PixelType pt = i.channel().type;
-            int typeSize = 4;
-            switch (pt) {
-            case HALF:
-                typeSize = 2;
-                break;
-
-            case FLOAT:
-            case UINT:
-                typeSize = 4;
-                break;
-
-            default:
-                break;
-            }
+	    int typeSize = (int) compute_typesize(pt);
+            if (typeSize < 0) typeSize = 4;
             int xSampling = i.channel().xSampling;
             int ySampling = i.channel().ySampling;
             int yStride = typeSize * width;
@@ -870,7 +1276,7 @@ static PyObject *outwrite(PyObject *self, PyObject *args)
     catch (const std::exception &e)
     {
         releaseviews(views);
-        PyErr_SetString(PyExc_IOError, e.what());
+        PyErr_SetString(PyExc_OSError, e.what());
         return NULL;
     }
     releaseviews(views);
@@ -879,6 +1285,10 @@ static PyObject *outwrite(PyObject *self, PyObject *args)
 
 static PyObject *outcurrentscanline(PyObject *self, PyObject *args)
 {
+    if (!((OutputFileC *)self)->is_opened) {
+	PyErr_SetString(PyExc_OSError, "cannot write to closed file");
+	return NULL;
+    }
     OutputFile *file = &((OutputFileC *)self)->o;
     return PyLong_FromLong(file->currentScanLine());
 }
@@ -933,8 +1343,8 @@ static PyTypeObject OutputFile_Type = {
     0,
     0,
     (reprfunc)OutputFile_Repr,
-    0, //&InputFile_as_number,
-    0, //&InputFile_as_sequence,
+    0, 
+    0, 
     0,
 
     0,
@@ -1142,7 +1552,7 @@ int makeOutputFile(PyObject *self, PyObject *args, PyObject *kwds)
     }
     catch (const std::exception &e)
     {
-        PyErr_SetString(PyExc_IOError, e.what());
+        PyErr_SetString(PyExc_OSError, e.what());
         return -1;
     }
     object->is_opened = 1;
@@ -1217,14 +1627,19 @@ MOD_INIT(OpenEXR)
 
     /* initialize module variables/constants */
     InputFile_Type.tp_new = PyType_GenericNew;
+    TiledInputFile_Type.tp_new = PyType_GenericNew;
     InputFile_Type.tp_init = makeInputFile;
+    TiledInputFile_Type.tp_init = makeTiledInputFile;
     OutputFile_Type.tp_new = PyType_GenericNew;
     OutputFile_Type.tp_init = makeOutputFile;
     if (PyType_Ready(&InputFile_Type) != 0)
         return MOD_ERROR_VAL;
+    if (PyType_Ready(&TiledInputFile_Type) != 0)
+        return MOD_ERROR_VAL;
     if (PyType_Ready(&OutputFile_Type) != 0)
         return MOD_ERROR_VAL;
     PyModule_AddObject(m, "InputFile", (PyObject *)&InputFile_Type);
+    PyModule_AddObject(m, "TiledInputFile", (PyObject *)&TiledInputFile_Type);
     PyModule_AddObject(m, "OutputFile", (PyObject *)&OutputFile_Type);
 
 #if PYTHON_API_VERSION >= 1007
