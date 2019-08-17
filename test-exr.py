@@ -78,9 +78,9 @@ class TestDirected(unittest.TestCase):
             self.assertEqual(set(OpenEXR.InputFile('out0.exr').header()['channels']), chans)
 
     def test_fail(self):
-        self.assertRaises(IOError, lambda: OpenEXR.InputFile("non-existent"))
+        self.assertRaises(OSError, lambda: OpenEXR.InputFile("non-existent"))
         hdr = OpenEXR.Header(640, 480)
-        self.assertRaises(IOError, lambda: OpenEXR.OutputFile("/forbidden", hdr))
+        self.assertRaises(OSError, lambda: OpenEXR.OutputFile("/forbidden", hdr))
 
     def test_metadata_roundtrip(self):
         infile = OpenEXR.InputFile("GoldenGate.exr")
