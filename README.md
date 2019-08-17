@@ -7,7 +7,7 @@ See homepage at http://www.excamera.com/sphinx/articles-openexr.html
 
 ## Requirements
 
-To build from source, a C++ compiler and libraries and development headers for OpenEXR and zlib are required. In Ubuntu, the `g++`, `libopenexr-dev` and `zlib1g-dev` packages suffice all requirements.
+To build from source, a C++ compiler and libraries and development headers for OpenEXR and zlib are required. In Ubuntu, the `g++`, `libopenexr-dev` and `zlib1g-dev` packages suffice all requirements. In OSX, the Homebrew packages `openexr` and `zlib` will suffice.
 
 For the latest release, run:
 
