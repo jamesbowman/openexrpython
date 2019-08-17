@@ -1092,8 +1092,9 @@ int makeInputFile(PyObject *self, PyObject *args, PyObject *kwds)
     InputFileC *object = ((InputFileC *)self);
     PyObject *fo;
     char *filename = NULL;
+    int numthreads = -1;
 
-    if (PyArg_ParseTuple(args, "O:InputFile", &fo)) {
+    if (PyArg_ParseTuple(args, "O|i:InputFile", &fo, &numthreads)) {
       if (PyString_Check(fo)) {
           filename = PyString_AsString(fo);
           object->fo = NULL;
@@ -1113,10 +1114,20 @@ int makeInputFile(PyObject *self, PyObject *args, PyObject *kwds)
 
     try
     {
-        if (filename != NULL)
-          new(&object->i) InputFile(filename);
-        else
-          new(&object->i) InputFile(*object->istream);
+      if (numthreads < 0)
+	{
+	  if (filename != NULL)
+	    new(&object->i) InputFile(filename);
+	  else
+	    new(&object->i) InputFile(*object->istream);
+	}
+      else
+	{
+	  if (filename != NULL)
+	    new(&object->i) InputFile(filename, numthreads);
+	  else
+	    new(&object->i) InputFile(*object->istream, numthreads);
+	}
     }
     catch (const std::exception &e)
     {
@@ -1134,8 +1145,9 @@ int makeTiledInputFile(PyObject *self, PyObject *args, PyObject *kwds)
     TiledInputFileC *object = ((TiledInputFileC *)self);
     PyObject *fo;
     char *filename = NULL;
+    int numthreads = -1;
 
-    if (PyArg_ParseTuple(args, "O:TiledInputFile", &fo)) {
+    if (PyArg_ParseTuple(args, "O|i:TiledInputFile", &fo, &numthreads)) {
       if (PyString_Check(fo)) {
           filename = PyString_AsString(fo);
           object->fo = NULL;
@@ -1155,10 +1167,20 @@ int makeTiledInputFile(PyObject *self, PyObject *args, PyObject *kwds)
 
     try
     {
-        if (filename != NULL)
-          new(&object->i) TiledInputFile(filename);
-        else
-          new(&object->i) TiledInputFile(*object->istream);
+      if (numthreads < 0)
+	{
+	  if (filename != NULL)
+	    new(&object->i) TiledInputFile(filename);
+	  else
+	    new(&object->i) TiledInputFile(*object->istream);
+	}
+      else
+	{
+	  if (filename != NULL)
+	    new(&object->i) TiledInputFile(filename, numthreads);
+	  else
+	    new(&object->i) TiledInputFile(*object->istream, numthreads);
+	}
     }
     catch (const std::exception &e)
     {
@@ -1380,7 +1402,9 @@ int makeOutputFile(PyObject *self, PyObject *args, PyObject *kwds)
 
     OutputFileC *object = (OutputFileC *)self;
 
-    if (PyArg_ParseTuple(args, "OO!:OutputFile", &fo, &PyDict_Type, &header_dict)) {
+    int numthreads = -1;
+
+    if (PyArg_ParseTuple(args, "OO!|i:OutputFile", &fo, &PyDict_Type, &header_dict, &numthreads)) {
       if (PyString_Check(fo)) {
           filename = PyString_AsString(fo);
           object->fo = NULL;
@@ -1545,10 +1569,20 @@ int makeOutputFile(PyObject *self, PyObject *args, PyObject *kwds)
 
     try
     {
-        if (filename != NULL)
-          new(&object->o) OutputFile(filename, header);
-        else
-          new(&object->o) OutputFile(*object->ostream, header);
+      if (numthreads < 0)
+	{
+	  if (filename != NULL)
+	    new(&object->o) OutputFile(filename, header);
+	  else
+	    new(&object->o) OutputFile(*object->ostream, header);
+	}
+      else
+	{
+	  if (filename != NULL)
+	    new(&object->o) OutputFile(filename, header, numthreads);
+	  else
+	    new(&object->o) OutputFile(*object->ostream, header, numthreads);
+	}
     }
     catch (const std::exception &e)
     {
@@ -1557,6 +1591,28 @@ int makeOutputFile(PyObject *self, PyObject *args, PyObject *kwds)
     }
     object->is_opened = 1;
     return 0;
+}
+
+PyObject *set_global_thread_count(PyObject *self, PyObject *args)
+{
+  int n = 0;
+  if (!PyArg_ParseTuple(args, "i:setGlobalThreadCount", &n))
+    return NULL;
+  try
+    {
+      setGlobalThreadCount(n);
+    }
+  catch (const std::exception &e)
+    {
+      PyErr_SetString(PyExc_OSError, e.what());
+      return NULL;
+    }
+  Py_RETURN_NONE;
+}
+
+PyObject *get_global_thread_count(PyObject *self, PyObject *args)
+{
+  return PyLong_FromLong(globalThreadCount());
 }
 
 ////////////////////////////////////////////////////////////////////////
@@ -1607,6 +1663,8 @@ PyObject *_isTiledOpenExrFile(PyObject *self, PyObject *args)
 
 static PyMethodDef methods[] = {
     {"Header", makeHeader, METH_VARARGS},
+    {"setGlobalThreadCount", set_global_thread_count, METH_VARARGS},
+    {"globalThreadCount", get_global_thread_count, METH_VARARGS},
     {"isOpenExrFile", _isOpenExrFile, METH_VARARGS},
 #ifdef VERSION_HAS_ISTILED
     {"isTiledOpenExrFile", _isTiledOpenExrFile, METH_VARARGS},

@@ -7,7 +7,7 @@
 Available Types
 ---------------
 
-.. class:: InputFile(file)
+.. class:: InputFile(file[, numThreads])
 
    The :class:`InputFile` object is used to read an EXR file.
    *file* can be a filename or any object that has a type:`file`
@@ -100,7 +100,7 @@ Available Types
        (Another program may still be busy writing the file, or file
        writing may have been aborted prematurely.)
 
-.. class:: TiledInputFile(file)
+.. class:: TiledInputFile(file[, numThreads])
 
    The :class:`TiledInputFile` object is used to read a tiled EXR file, with special methods for extracting sub-regions.
 
@@ -212,7 +212,7 @@ Available Types
        :param ly: level, 0 by default
        :type ly: int
        
-.. class:: OutputFile(file, header)
+.. class:: OutputFile(file, header[, numThreads])
 
    Creates the EXR file *filename*, with given *header*.
    *file* can be a filename or any object that has a type:`file`
@@ -300,6 +300,16 @@ Available Functions
        'screenWindowCenter': (0.0, 0.0),
        'screenWindowWidth': 1.0,
        'lineOrder': INCREASING_Y}
+
+.. index:: thread
+       
+.. function:: globalThreadCount() -> int
+
+   The number of global worker threads for parallel I/O.
+
+.. function:: setGlobalThreadCount()
+
+   Sets the number of global worker threads. 0 means single threaded I/O for each application thread. File objects will attempt to seize all available workers unless the *numThreads* argument is set on construction.
 
 
 .. _headers:
