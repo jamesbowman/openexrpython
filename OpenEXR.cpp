@@ -1201,8 +1201,164 @@ int makeTiledInputFile(PyObject *self, PyObject *args, PyObject *kwds)
 
 
 ////////////////////////////////////////////////////////////////////////
+//    Functions shared with OutputFile and MultiPartOutputFile
+////////////////////////////////////////////////////////////////////////
+
+
+Header makeHeaderFromDict(PyObject *header_dict)
+{
+    PyObject *pB2i = PyObject_GetAttrString(pModuleImath, "Box2i");
+    PyObject *pB2f = PyObject_GetAttrString(pModuleImath, "Box2f");
+    PyObject *pV2f = PyObject_GetAttrString(pModuleImath, "V2f");
+    PyObject *pLO = PyObject_GetAttrString(pModuleImath, "LineOrder");
+    PyObject *pCOMP = PyObject_GetAttrString(pModuleImath, "Compression");
+    PyObject *pPI = PyObject_GetAttrString(pModuleImath, "PreviewImage");
+    PyObject *pCH = PyObject_GetAttrString(pModuleImath, "Chromaticities");
+    PyObject *pTD = PyObject_GetAttrString(pModuleImath, "TileDescription");
+    PyObject *pRA = PyObject_GetAttrString(pModuleImath, "Rational");
+    PyObject *pKA = PyObject_GetAttrString(pModuleImath, "KeyCode");
+    PyObject *pTC = PyObject_GetAttrString(pModuleImath, "TimeCode");
+
+    Header header(64, 64);
+    Py_ssize_t pos = 0;
+    PyObject *key, *value;
+
+    while (PyDict_Next(header_dict, &pos, &key, &value)) {
+        const char *ks = PyUTF8_AsSstring(key);
+        if (PyFloat_Check(value)) {
+            header.insert(ks, FloatAttribute(PyFloat_AsDouble(value)));
+        }
+        else if (PyInt_Check(value)) {
+            header.insert(ks, IntAttribute(PyInt_AsLong(value)));
+        } else if (PyBytes_Check(value)) {
+            header.insert(ks, StringAttribute(PyString_AsString(value)));
+        } else if (PyObject_IsInstance(value, pB2i)) {
+            Box2i box(V2i(PyLong_AsLong(PyObject_StealAttrString(PyObject_StealAttrString(value, "min"), "x")),
+                        PyLong_AsLong(PyObject_StealAttrString(PyObject_StealAttrString(value, "min"), "y"))),
+                    V2i(PyLong_AsLong(PyObject_StealAttrString(PyObject_StealAttrString(value, "max"), "x")),
+                        PyLong_AsLong(PyObject_StealAttrString(PyObject_StealAttrString(value, "max"), "y"))));
+            header.insert(ks, Box2iAttribute(box));
+        } else if (PyObject_IsInstance(value, pB2f)) {
+            Box2f box(V2f(PyFloat_AsDouble(PyObject_StealAttrString(PyObject_StealAttrString(value, "min"), "x")),
+                        PyFloat_AsDouble(PyObject_StealAttrString(PyObject_StealAttrString(value, "min"), "y"))),
+                    V2f(PyFloat_AsDouble(PyObject_StealAttrString(PyObject_StealAttrString(value, "max"), "x")),
+                        PyFloat_AsDouble(PyObject_StealAttrString(PyObject_StealAttrString(value, "max"), "y"))));
+            header.insert(ks, Box2fAttribute(box));
+        } else if (PyObject_IsInstance(value, pPI)) {
+            PreviewImage pi(PyLong_AsLong(PyObject_StealAttrString(value, "width")),
+                            PyLong_AsLong(PyObject_StealAttrString(value, "height")),
+                            (Imf::PreviewRgba *)PyString_AsString(PyObject_StealAttrString(value, "pixels")));
+            header.insert(ks, PreviewImageAttribute(pi));
+        } else if (PyObject_IsInstance(value, pV2f)) {
+            V2f v(PyFloat_AsDouble(PyObject_StealAttrString(value, "x")), PyFloat_AsDouble(PyObject_StealAttrString(value, "y")));
+
+            header.insert(ks, V2fAttribute(v));
+        } else if (PyObject_IsInstance(value, pLO)) {
+            LineOrder i = (LineOrder)PyInt_AsLong(PyObject_StealAttrString(value, "v"));
+
+            header.insert(ks, LineOrderAttribute(i));
+        } else if (PyObject_IsInstance(value, pTC)) {
+            TimeCode v(PyLong_AsLong(PyObject_StealAttrString(value,"hours")),
+                    PyLong_AsLong(PyObject_StealAttrString(value,"minutes")),
+                    PyLong_AsLong(PyObject_StealAttrString(value,"seconds")),
+                    PyLong_AsLong(PyObject_StealAttrString(value,"frame")),
+                    PyLong_AsLong(PyObject_StealAttrString(value,"dropFrame")),
+                    PyLong_AsLong(PyObject_StealAttrString(value,"colorFrame")),
+                    PyLong_AsLong(PyObject_StealAttrString(value,"fieldPhase")),
+                    PyLong_AsLong(PyObject_StealAttrString(value,"bgf0")),
+                    PyLong_AsLong(PyObject_StealAttrString(value,"bgf1")),
+                    PyLong_AsLong(PyObject_StealAttrString(value,"bgf2")),
+                    PyLong_AsLong(PyObject_StealAttrString(value,"binaryGroup1")),
+                    PyLong_AsLong(PyObject_StealAttrString(value,"binaryGroup2")),
+                    PyLong_AsLong(PyObject_StealAttrString(value,"binaryGroup3")),
+                    PyLong_AsLong(PyObject_StealAttrString(value,"binaryGroup4")),
+                    PyLong_AsLong(PyObject_StealAttrString(value,"binaryGroup5")),
+                    PyLong_AsLong(PyObject_StealAttrString(value,"binaryGroup6")),
+                    PyLong_AsLong(PyObject_StealAttrString(value,"binaryGroup7")),
+                    PyLong_AsLong(PyObject_StealAttrString(value,"binaryGroup8")));
+                                
+            header.insert(ks, TimeCodeAttribute(v));
+        
+        } else if (PyObject_IsInstance(value, pKA)) {
+                KeyCode v(PyLong_AsLong(PyObject_StealAttrString(value, "filmMfcCode")),
+                        PyLong_AsLong(PyObject_StealAttrString(value, "filmType")),
+                        PyLong_AsLong(PyObject_StealAttrString(value, "prefix")),
+                        PyLong_AsLong(PyObject_StealAttrString(value, "count")),
+                        PyLong_AsLong(PyObject_StealAttrString(value, "perfOffset")),
+                        PyLong_AsLong(PyObject_StealAttrString(value, "perfsPerFrame")),
+                        PyLong_AsLong(PyObject_StealAttrString(value, "perfsPerCount")));
+                header.insert(ks, KeyCodeAttribute(v));
+        } else if (PyObject_IsInstance(value, pRA)) {
+            Rational v(PyLong_AsLong(PyObject_StealAttrString(value, "n")), PyLong_AsLong(PyObject_StealAttrString(value, "d")));       
+            header.insert(ks, RationalAttribute(v));
+        } else if (PyObject_IsInstance(value, pCOMP)) {
+            Compression i = (Compression)PyInt_AsLong(PyObject_StealAttrString(value, "v"));
+
+            header.insert(ks, CompressionAttribute(i));
+        } else if (PyObject_IsInstance(value, pCH)) {
+            V2f red(PyFloat_AsDouble(PyObject_StealAttrString(PyObject_StealAttrString(value, "red"), "x")),
+                    PyFloat_AsDouble(PyObject_StealAttrString(PyObject_StealAttrString(value, "red"), "y")));
+            V2f green(PyFloat_AsDouble(PyObject_StealAttrString(PyObject_StealAttrString(value, "green"), "x")),
+                    PyFloat_AsDouble(PyObject_StealAttrString(PyObject_StealAttrString(value, "green"), "y")));
+            V2f blue(PyFloat_AsDouble(PyObject_StealAttrString(PyObject_StealAttrString(value, "blue"), "x")),
+                    PyFloat_AsDouble(PyObject_StealAttrString(PyObject_StealAttrString(value, "blue"), "y")));
+            V2f white(PyFloat_AsDouble(PyObject_StealAttrString(PyObject_StealAttrString(value, "white"), "x")),
+                    PyFloat_AsDouble(PyObject_StealAttrString(PyObject_StealAttrString(value, "white"), "y")));
+            Chromaticities c(red, green, blue, white);
+            header.insert(ks, ChromaticitiesAttribute(c));
+        } else if (PyObject_IsInstance(value, pTD)) {
+            TileDescription td(PyInt_AsLong(PyObject_StealAttrString(value, "xSize")),
+                            PyInt_AsLong(PyObject_StealAttrString(value, "ySize")),
+                            (Imf::LevelMode)PyInt_AsLong(PyObject_StealAttrString(PyObject_StealAttrString(value, "mode"), "v")),
+                            (Imf::LevelRoundingMode)PyInt_AsLong(PyObject_StealAttrString(PyObject_StealAttrString(value, "roundingMode"), "v"))
+                            );
+            header.insert(ks, TileDescriptionAttribute(td));
+        } else if (PyDict_Check(value)) {
+            PyObject *key2, *value2;
+            Py_ssize_t pos2 = 0;
+
+            while (PyDict_Next(value, &pos2, &key2, &value2)) {
+                if (0)
+                    printf("%s -> %s\n",
+                        PyString_AsString(key2),
+                        PyString_AsString(PyObject_Str(PyObject_Type(value2))));
+                header.channels().insert(PyUTF8_AsSstring(key2),
+                                        Channel(PixelType(PyLong_AsLong(PyObject_StealAttrString(PyObject_StealAttrString(value2, "type"), "v"))),
+                                                PyLong_AsLong(PyObject_StealAttrString(value2, "xSampling")),
+                                                PyLong_AsLong(PyObject_StealAttrString(value2, "ySampling"))));
+            }
+#ifdef INCLUDED_IMF_STRINGVECTOR_ATTRIBUTE_H
+        } else if (PyList_Check(value)) {
+            StringVector sv(PyList_Size(value));
+            for (size_t i = 0; i < sv.size(); i++)
+                sv[i] = PyUTF8_AsSstring(PyList_GetItem(value, i));
+            header.insert(ks, StringVectorAttribute(sv));
+#endif
+        } else {
+            printf("XXX - unknown attribute: %s\n", PyUTF8_AsSstring(PyObject_Str(key)));
+        }
+    }
+
+    Py_DECREF(pB2i);
+    Py_DECREF(pB2f);
+    Py_DECREF(pV2f);
+    Py_DECREF(pLO);
+    Py_DECREF(pCOMP);
+    Py_DECREF(pPI);
+    Py_DECREF(pCH);
+    Py_DECREF(pTD);
+    Py_DECREF(pRA);
+    Py_DECREF(pKA);
+    Py_DECREF(pTC);
+
+
+    return header;
+}
+
+////////////////////////////////////////////////////////////////////////
 //    OutputFile
 ////////////////////////////////////////////////////////////////////////
+
 
 typedef struct {
     PyObject_HEAD
@@ -1428,150 +1584,7 @@ int makeOutputFile(PyObject *self, PyObject *args, PyObject *kwds)
        return -1;
     }
 
-    Header header(64, 64);
-
-    PyObject *pB2i = PyObject_GetAttrString(pModuleImath, "Box2i");
-    PyObject *pB2f = PyObject_GetAttrString(pModuleImath, "Box2f");
-    PyObject *pV2f = PyObject_GetAttrString(pModuleImath, "V2f");
-    PyObject *pLO = PyObject_GetAttrString(pModuleImath, "LineOrder");
-    PyObject *pCOMP = PyObject_GetAttrString(pModuleImath, "Compression");
-    PyObject *pPI = PyObject_GetAttrString(pModuleImath, "PreviewImage");
-    PyObject *pCH = PyObject_GetAttrString(pModuleImath, "Chromaticities");
-    PyObject *pTD = PyObject_GetAttrString(pModuleImath, "TileDescription");
-    PyObject *pRA = PyObject_GetAttrString(pModuleImath, "Rational");
-    PyObject *pKA = PyObject_GetAttrString(pModuleImath, "KeyCode");
-    PyObject *pTC = PyObject_GetAttrString(pModuleImath, "TimeCode");
-
-    Py_ssize_t pos = 0;
-    PyObject *key, *value;
-
-    while (PyDict_Next(header_dict, &pos, &key, &value)) {
-        const char *ks = PyUTF8_AsSstring(key);
-        if (PyFloat_Check(value)) {
-            header.insert(ks, FloatAttribute(PyFloat_AsDouble(value)));
-        }
-        else if (PyInt_Check(value)) {
-            header.insert(ks, IntAttribute(PyInt_AsLong(value)));
-        } else if (PyBytes_Check(value)) {
-            header.insert(ks, StringAttribute(PyString_AsString(value)));
-        } else if (PyObject_IsInstance(value, pB2i)) {
-            Box2i box(V2i(PyLong_AsLong(PyObject_StealAttrString(PyObject_StealAttrString(value, "min"), "x")),
-                          PyLong_AsLong(PyObject_StealAttrString(PyObject_StealAttrString(value, "min"), "y"))),
-                      V2i(PyLong_AsLong(PyObject_StealAttrString(PyObject_StealAttrString(value, "max"), "x")),
-                          PyLong_AsLong(PyObject_StealAttrString(PyObject_StealAttrString(value, "max"), "y"))));
-            header.insert(ks, Box2iAttribute(box));
-        } else if (PyObject_IsInstance(value, pB2f)) {
-            Box2f box(V2f(PyFloat_AsDouble(PyObject_StealAttrString(PyObject_StealAttrString(value, "min"), "x")),
-                          PyFloat_AsDouble(PyObject_StealAttrString(PyObject_StealAttrString(value, "min"), "y"))),
-                      V2f(PyFloat_AsDouble(PyObject_StealAttrString(PyObject_StealAttrString(value, "max"), "x")),
-                          PyFloat_AsDouble(PyObject_StealAttrString(PyObject_StealAttrString(value, "max"), "y"))));
-            header.insert(ks, Box2fAttribute(box));
-        } else if (PyObject_IsInstance(value, pPI)) {
-            PreviewImage pi(PyLong_AsLong(PyObject_StealAttrString(value, "width")),
-                            PyLong_AsLong(PyObject_StealAttrString(value, "height")),
-                            (Imf::PreviewRgba *)PyString_AsString(PyObject_StealAttrString(value, "pixels")));
-            header.insert(ks, PreviewImageAttribute(pi));
-        } else if (PyObject_IsInstance(value, pV2f)) {
-            V2f v(PyFloat_AsDouble(PyObject_StealAttrString(value, "x")), PyFloat_AsDouble(PyObject_StealAttrString(value, "y")));
-
-            header.insert(ks, V2fAttribute(v));
-        } else if (PyObject_IsInstance(value, pLO)) {
-            LineOrder i = (LineOrder)PyInt_AsLong(PyObject_StealAttrString(value, "v"));
-
-            header.insert(ks, LineOrderAttribute(i));
-        } else if (PyObject_IsInstance(value, pTC)) {
-            TimeCode v(PyLong_AsLong(PyObject_StealAttrString(value,"hours")),
-                       PyLong_AsLong(PyObject_StealAttrString(value,"minutes")),
-                       PyLong_AsLong(PyObject_StealAttrString(value,"seconds")),
-                       PyLong_AsLong(PyObject_StealAttrString(value,"frame")),
-                       PyLong_AsLong(PyObject_StealAttrString(value,"dropFrame")),
-                       PyLong_AsLong(PyObject_StealAttrString(value,"colorFrame")),
-                       PyLong_AsLong(PyObject_StealAttrString(value,"fieldPhase")),
-                       PyLong_AsLong(PyObject_StealAttrString(value,"bgf0")),
-                       PyLong_AsLong(PyObject_StealAttrString(value,"bgf1")),
-                       PyLong_AsLong(PyObject_StealAttrString(value,"bgf2")),
-                       PyLong_AsLong(PyObject_StealAttrString(value,"binaryGroup1")),
-                       PyLong_AsLong(PyObject_StealAttrString(value,"binaryGroup2")),
-                       PyLong_AsLong(PyObject_StealAttrString(value,"binaryGroup3")),
-                       PyLong_AsLong(PyObject_StealAttrString(value,"binaryGroup4")),
-                       PyLong_AsLong(PyObject_StealAttrString(value,"binaryGroup5")),
-                       PyLong_AsLong(PyObject_StealAttrString(value,"binaryGroup6")),
-                       PyLong_AsLong(PyObject_StealAttrString(value,"binaryGroup7")),
-                       PyLong_AsLong(PyObject_StealAttrString(value,"binaryGroup8")));
-                                
-            header.insert(ks, TimeCodeAttribute(v));
-        
-        } else if (PyObject_IsInstance(value, pKA)) {
-                KeyCode v(PyLong_AsLong(PyObject_StealAttrString(value, "filmMfcCode")),
-                          PyLong_AsLong(PyObject_StealAttrString(value, "filmType")),
-                          PyLong_AsLong(PyObject_StealAttrString(value, "prefix")),
-                          PyLong_AsLong(PyObject_StealAttrString(value, "count")),
-                          PyLong_AsLong(PyObject_StealAttrString(value, "perfOffset")),
-                          PyLong_AsLong(PyObject_StealAttrString(value, "perfsPerFrame")),
-                          PyLong_AsLong(PyObject_StealAttrString(value, "perfsPerCount")));
-                header.insert(ks, KeyCodeAttribute(v));
-        } else if (PyObject_IsInstance(value, pRA)) {
-            Rational v(PyLong_AsLong(PyObject_StealAttrString(value, "n")), PyLong_AsLong(PyObject_StealAttrString(value, "d")));       
-            header.insert(ks, RationalAttribute(v));
-        } else if (PyObject_IsInstance(value, pCOMP)) {
-            Compression i = (Compression)PyInt_AsLong(PyObject_StealAttrString(value, "v"));
-
-            header.insert(ks, CompressionAttribute(i));
-        } else if (PyObject_IsInstance(value, pCH)) {
-            V2f red(PyFloat_AsDouble(PyObject_StealAttrString(PyObject_StealAttrString(value, "red"), "x")),
-                    PyFloat_AsDouble(PyObject_StealAttrString(PyObject_StealAttrString(value, "red"), "y")));
-            V2f green(PyFloat_AsDouble(PyObject_StealAttrString(PyObject_StealAttrString(value, "green"), "x")),
-                      PyFloat_AsDouble(PyObject_StealAttrString(PyObject_StealAttrString(value, "green"), "y")));
-            V2f blue(PyFloat_AsDouble(PyObject_StealAttrString(PyObject_StealAttrString(value, "blue"), "x")),
-                     PyFloat_AsDouble(PyObject_StealAttrString(PyObject_StealAttrString(value, "blue"), "y")));
-            V2f white(PyFloat_AsDouble(PyObject_StealAttrString(PyObject_StealAttrString(value, "white"), "x")),
-                      PyFloat_AsDouble(PyObject_StealAttrString(PyObject_StealAttrString(value, "white"), "y")));
-            Chromaticities c(red, green, blue, white);
-            header.insert(ks, ChromaticitiesAttribute(c));
-        } else if (PyObject_IsInstance(value, pTD)) {
-            TileDescription td(PyInt_AsLong(PyObject_StealAttrString(value, "xSize")),
-                               PyInt_AsLong(PyObject_StealAttrString(value, "ySize")),
-                               (Imf::LevelMode)PyInt_AsLong(PyObject_StealAttrString(PyObject_StealAttrString(value, "mode"), "v")),
-                               (Imf::LevelRoundingMode)PyInt_AsLong(PyObject_StealAttrString(PyObject_StealAttrString(value, "roundingMode"), "v"))
-                               );
-            header.insert(ks, TileDescriptionAttribute(td));
-        } else if (PyDict_Check(value)) {
-            PyObject *key2, *value2;
-            Py_ssize_t pos2 = 0;
-
-            while (PyDict_Next(value, &pos2, &key2, &value2)) {
-                if (0)
-                    printf("%s -> %s\n",
-                        PyString_AsString(key2),
-                        PyString_AsString(PyObject_Str(PyObject_Type(value2))));
-                header.channels().insert(PyUTF8_AsSstring(key2),
-                                         Channel(PixelType(PyLong_AsLong(PyObject_StealAttrString(PyObject_StealAttrString(value2, "type"), "v"))),
-                                                 PyLong_AsLong(PyObject_StealAttrString(value2, "xSampling")),
-                                                 PyLong_AsLong(PyObject_StealAttrString(value2, "ySampling"))));
-            }
-#ifdef INCLUDED_IMF_STRINGVECTOR_ATTRIBUTE_H
-        } else if (PyList_Check(value)) {
-            StringVector sv(PyList_Size(value));
-            for (size_t i = 0; i < sv.size(); i++)
-                sv[i] = PyUTF8_AsSstring(PyList_GetItem(value, i));
-            header.insert(ks, StringVectorAttribute(sv));
-#endif
-        } else {
-            printf("XXX - unknown attribute: %s\n", PyUTF8_AsSstring(PyObject_Str(key)));
-        }
-    }
-
-    Py_DECREF(pB2i);
-    Py_DECREF(pB2f);
-    Py_DECREF(pV2f);
-    Py_DECREF(pLO);
-    Py_DECREF(pCOMP);
-    Py_DECREF(pPI);
-    Py_DECREF(pCH);
-    Py_DECREF(pTD);
-    Py_DECREF(pRA);
-    Py_DECREF(pKA);
-    Py_DECREF(pTC);
+    Header header = makeHeaderFromDict(header_dict);
 
     try
     {
@@ -1903,21 +1916,7 @@ int makeMultiPartOutputFile(PyObject *self, PyObject *args, PyObject *kwds)
        return -1;
     }
 
-    
 
-    
-
-    PyObject *pB2i = PyObject_GetAttrString(pModuleImath, "Box2i");
-    PyObject *pB2f = PyObject_GetAttrString(pModuleImath, "Box2f");
-    PyObject *pV2f = PyObject_GetAttrString(pModuleImath, "V2f");
-    PyObject *pLO = PyObject_GetAttrString(pModuleImath, "LineOrder");
-    PyObject *pCOMP = PyObject_GetAttrString(pModuleImath, "Compression");
-    PyObject *pPI = PyObject_GetAttrString(pModuleImath, "PreviewImage");
-    PyObject *pCH = PyObject_GetAttrString(pModuleImath, "Chromaticities");
-    PyObject *pTD = PyObject_GetAttrString(pModuleImath, "TileDescription");
-    PyObject *pRA = PyObject_GetAttrString(pModuleImath, "Rational");
-    PyObject *pKA = PyObject_GetAttrString(pModuleImath, "KeyCode");
-    PyObject *pTC = PyObject_GetAttrString(pModuleImath, "TimeCode");
 
 
     Py_ssize_t numParts = PyList_Size(headers_list);
@@ -1926,144 +1925,15 @@ int makeMultiPartOutputFile(PyObject *self, PyObject *args, PyObject *kwds)
     for(Py_ssize_t partNum = 0; partNum < numParts; partNum++){
 
         PyObject *header_dict = PyList_GetItem(headers_list, partNum);
-        Header header(64, 64);
+
+        Header header = makeHeaderFromDict(header_dict);
 
         header.setType(SCANLINEIMAGE); // FIXME: Need to support TILEDIMAGE
         
-        Py_ssize_t pos = 0;
-        PyObject *key, *value;
-
-        while (PyDict_Next(header_dict, &pos, &key, &value)) {
-            const char *ks = PyUTF8_AsSstring(key);
-            if (PyFloat_Check(value)) {
-                header.insert(ks, FloatAttribute(PyFloat_AsDouble(value)));
-            }
-            else if (PyInt_Check(value)) {
-                header.insert(ks, IntAttribute(PyInt_AsLong(value)));
-            } else if (PyBytes_Check(value)) {
-                header.insert(ks, StringAttribute(PyString_AsString(value)));
-            } else if (PyObject_IsInstance(value, pB2i)) {
-                Box2i box(V2i(PyLong_AsLong(PyObject_StealAttrString(PyObject_StealAttrString(value, "min"), "x")),
-                            PyLong_AsLong(PyObject_StealAttrString(PyObject_StealAttrString(value, "min"), "y"))),
-                        V2i(PyLong_AsLong(PyObject_StealAttrString(PyObject_StealAttrString(value, "max"), "x")),
-                            PyLong_AsLong(PyObject_StealAttrString(PyObject_StealAttrString(value, "max"), "y"))));
-                header.insert(ks, Box2iAttribute(box));
-            } else if (PyObject_IsInstance(value, pB2f)) {
-                Box2f box(V2f(PyFloat_AsDouble(PyObject_StealAttrString(PyObject_StealAttrString(value, "min"), "x")),
-                            PyFloat_AsDouble(PyObject_StealAttrString(PyObject_StealAttrString(value, "min"), "y"))),
-                        V2f(PyFloat_AsDouble(PyObject_StealAttrString(PyObject_StealAttrString(value, "max"), "x")),
-                            PyFloat_AsDouble(PyObject_StealAttrString(PyObject_StealAttrString(value, "max"), "y"))));
-                header.insert(ks, Box2fAttribute(box));
-            } else if (PyObject_IsInstance(value, pPI)) {
-                PreviewImage pi(PyLong_AsLong(PyObject_StealAttrString(value, "width")),
-                                PyLong_AsLong(PyObject_StealAttrString(value, "height")),
-                                (Imf::PreviewRgba *)PyString_AsString(PyObject_StealAttrString(value, "pixels")));
-                header.insert(ks, PreviewImageAttribute(pi));
-            } else if (PyObject_IsInstance(value, pV2f)) {
-                V2f v(PyFloat_AsDouble(PyObject_StealAttrString(value, "x")), PyFloat_AsDouble(PyObject_StealAttrString(value, "y")));
-
-                header.insert(ks, V2fAttribute(v));
-            } else if (PyObject_IsInstance(value, pLO)) {
-                LineOrder i = (LineOrder)PyInt_AsLong(PyObject_StealAttrString(value, "v"));
-
-                header.insert(ks, LineOrderAttribute(i));
-            } else if (PyObject_IsInstance(value, pTC)) {
-                TimeCode v(PyLong_AsLong(PyObject_StealAttrString(value,"hours")),
-                        PyLong_AsLong(PyObject_StealAttrString(value,"minutes")),
-                        PyLong_AsLong(PyObject_StealAttrString(value,"seconds")),
-                        PyLong_AsLong(PyObject_StealAttrString(value,"frame")),
-                        PyLong_AsLong(PyObject_StealAttrString(value,"dropFrame")),
-                        PyLong_AsLong(PyObject_StealAttrString(value,"colorFrame")),
-                        PyLong_AsLong(PyObject_StealAttrString(value,"fieldPhase")),
-                        PyLong_AsLong(PyObject_StealAttrString(value,"bgf0")),
-                        PyLong_AsLong(PyObject_StealAttrString(value,"bgf1")),
-                        PyLong_AsLong(PyObject_StealAttrString(value,"bgf2")),
-                        PyLong_AsLong(PyObject_StealAttrString(value,"binaryGroup1")),
-                        PyLong_AsLong(PyObject_StealAttrString(value,"binaryGroup2")),
-                        PyLong_AsLong(PyObject_StealAttrString(value,"binaryGroup3")),
-                        PyLong_AsLong(PyObject_StealAttrString(value,"binaryGroup4")),
-                        PyLong_AsLong(PyObject_StealAttrString(value,"binaryGroup5")),
-                        PyLong_AsLong(PyObject_StealAttrString(value,"binaryGroup6")),
-                        PyLong_AsLong(PyObject_StealAttrString(value,"binaryGroup7")),
-                        PyLong_AsLong(PyObject_StealAttrString(value,"binaryGroup8")));
-                                    
-                header.insert(ks, TimeCodeAttribute(v));
-            
-            } else if (PyObject_IsInstance(value, pKA)) {
-                    KeyCode v(PyLong_AsLong(PyObject_StealAttrString(value, "filmMfcCode")),
-                            PyLong_AsLong(PyObject_StealAttrString(value, "filmType")),
-                            PyLong_AsLong(PyObject_StealAttrString(value, "prefix")),
-                            PyLong_AsLong(PyObject_StealAttrString(value, "count")),
-                            PyLong_AsLong(PyObject_StealAttrString(value, "perfOffset")),
-                            PyLong_AsLong(PyObject_StealAttrString(value, "perfsPerFrame")),
-                            PyLong_AsLong(PyObject_StealAttrString(value, "perfsPerCount")));
-                    header.insert(ks, KeyCodeAttribute(v));
-            } else if (PyObject_IsInstance(value, pRA)) {
-                Rational v(PyLong_AsLong(PyObject_StealAttrString(value, "n")), PyLong_AsLong(PyObject_StealAttrString(value, "d")));       
-                header.insert(ks, RationalAttribute(v));
-            } else if (PyObject_IsInstance(value, pCOMP)) {
-                Compression i = (Compression)PyInt_AsLong(PyObject_StealAttrString(value, "v"));
-
-                header.insert(ks, CompressionAttribute(i));
-            } else if (PyObject_IsInstance(value, pCH)) {
-                V2f red(PyFloat_AsDouble(PyObject_StealAttrString(PyObject_StealAttrString(value, "red"), "x")),
-                        PyFloat_AsDouble(PyObject_StealAttrString(PyObject_StealAttrString(value, "red"), "y")));
-                V2f green(PyFloat_AsDouble(PyObject_StealAttrString(PyObject_StealAttrString(value, "green"), "x")),
-                        PyFloat_AsDouble(PyObject_StealAttrString(PyObject_StealAttrString(value, "green"), "y")));
-                V2f blue(PyFloat_AsDouble(PyObject_StealAttrString(PyObject_StealAttrString(value, "blue"), "x")),
-                        PyFloat_AsDouble(PyObject_StealAttrString(PyObject_StealAttrString(value, "blue"), "y")));
-                V2f white(PyFloat_AsDouble(PyObject_StealAttrString(PyObject_StealAttrString(value, "white"), "x")),
-                        PyFloat_AsDouble(PyObject_StealAttrString(PyObject_StealAttrString(value, "white"), "y")));
-                Chromaticities c(red, green, blue, white);
-                header.insert(ks, ChromaticitiesAttribute(c));
-            } else if (PyObject_IsInstance(value, pTD)) {
-                TileDescription td(PyInt_AsLong(PyObject_StealAttrString(value, "xSize")),
-                                PyInt_AsLong(PyObject_StealAttrString(value, "ySize")),
-                                (Imf::LevelMode)PyInt_AsLong(PyObject_StealAttrString(PyObject_StealAttrString(value, "mode"), "v")),
-                                (Imf::LevelRoundingMode)PyInt_AsLong(PyObject_StealAttrString(PyObject_StealAttrString(value, "roundingMode"), "v"))
-                                );
-                header.insert(ks, TileDescriptionAttribute(td));
-            } else if (PyDict_Check(value)) {
-                PyObject *key2, *value2;
-                Py_ssize_t pos2 = 0;
-
-                while (PyDict_Next(value, &pos2, &key2, &value2)) {
-                    if (0)
-                        printf("%s -> %s\n",
-                            PyString_AsString(key2),
-                            PyString_AsString(PyObject_Str(PyObject_Type(value2))));
-                    header.channels().insert(PyUTF8_AsSstring(key2),
-                                            Channel(PixelType(PyLong_AsLong(PyObject_StealAttrString(PyObject_StealAttrString(value2, "type"), "v"))),
-                                                    PyLong_AsLong(PyObject_StealAttrString(value2, "xSampling")),
-                                                    PyLong_AsLong(PyObject_StealAttrString(value2, "ySampling"))));
-                }
-    #ifdef INCLUDED_IMF_STRINGVECTOR_ATTRIBUTE_H
-            } else if (PyList_Check(value)) {
-                StringVector sv(PyList_Size(value));
-                for (size_t i = 0; i < sv.size(); i++)
-                    sv[i] = PyUTF8_AsSstring(PyList_GetItem(value, i));
-                header.insert(ks, StringVectorAttribute(sv));
-    #endif
-            } else {
-                printf("XXX - unknown attribute: %s\n", PyUTF8_AsSstring(PyObject_Str(key)));
-            }
-        }
-
         headers.push_back(header);
     
     }
 
-    Py_DECREF(pB2i);
-    Py_DECREF(pB2f);
-    Py_DECREF(pV2f);
-    Py_DECREF(pLO);
-    Py_DECREF(pCOMP);
-    Py_DECREF(pPI);
-    Py_DECREF(pCH);
-    Py_DECREF(pTD);
-    Py_DECREF(pRA);
-    Py_DECREF(pKA);
-    Py_DECREF(pTC);
 
     try
     {
