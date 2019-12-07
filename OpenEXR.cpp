@@ -2077,9 +2077,9 @@ int makeMultiPartOutputFile(PyObject *self, PyObject *args, PyObject *kwds)
       else
 	{
 	  if (filename != NULL)
-	    new(&object->o) MultiPartOutputFile(filename, &headers[0],headers.size(), numthreads);
+	    new(&object->o) MultiPartOutputFile(filename, &headers[0],headers.size(), false, numthreads);
 	  else
-	    new(&object->o) MultiPartOutputFile(*object->ostream, &headers[0],headers.size(), numthreads);
+	    new(&object->o) MultiPartOutputFile(*object->ostream, &headers[0],headers.size(), false, numthreads);
 	}
     }
     catch (const std::exception &e)
