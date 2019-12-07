@@ -291,6 +291,28 @@ class TestDirected(unittest.TestCase):
     def test_version(self):
         self.assertTrue(OpenEXR.__version__ != None)
         self.assertTrue(OpenEXR.OPENEXR_VERSION_HEX != None)
+    
+    def test_multipart(self):
+        
+        data = [array('f', [ 0.7 ] * (100 * 100)).tobytes(), array('f', [ 0.1 ] * (100 * 100)).tobytes()]
+
+        headers = []
+        for i in range(2):
+            h = OpenEXR.Header(100,100)
+            h['channels'] = {'Z': Imath.Channel(Imath.PixelType(Imath.PixelType.FLOAT))}
+            # Multipart headers require a name
+            h['name'] = 'image_{0:02d}'.format(i).encode(encoding='ascii') # Header strings must be ASCII (Should probably support unicode...)
+            print(type(h['name']))
+            headers.append(h)
+
+        x = OpenEXR.MultiPartOutputFile('out-multipart.exr', headers)
+        
+        for i in range(2):
+            pixels = {'Z': data[i]}
+            x.writePixels(i, pixels)
+
+        x.close()
+
 
 if __name__ == '__main__':
     if 1:
