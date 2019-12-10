@@ -63,6 +63,12 @@ typedef int Py_ssize_t;
 #include <ImfVecAttribute.h>
 #include <ImfVersion.h>
 
+#include <OpenEXRConfig.h>
+
+#if OPENEXR_VERSION_MAJOR>=2
+#define VERSION_HAS_MULTIPART
+#endif
+
 #include <ImfRationalAttribute.h>
 #include <ImfRational.h>
 #include <ImfKeyCodeAttribute.h>
@@ -70,11 +76,13 @@ typedef int Py_ssize_t;
 #include <ImfTimeCodeAttribute.h>
 #include <ImfTimeCode.h>
 
+#ifdef VERSION_HAS_MULTIPART
 #include <ImfPartType.h>
 #include <ImfMultiPartInputFile.h>
 #include <ImfMultiPartOutputFile.h>
 #include <ImfInputPart.h>
 #include <ImfOutputPart.h>
+#endif
 
 #include <algorithm>
 #include <iostream>
@@ -955,270 +963,7 @@ static PyObject *isComplete(PyObject *self, PyObject *args)
     return PyBool_FromLong(file->isComplete());
 }
 
-////////////////////////////////////////////////////////////////////////
-//    MultiPartInputFile
-////////////////////////////////////////////////////////////////////////
 
-typedef struct {
-    PyObject_HEAD
-    MultiPartInputFile i;
-    PyObject *fo;
-    C_IStream *istream;
-    int is_opened;
-} MultiPartInputFileC;
-
-static PyObject *inchannel_multipart(PyObject *self, PyObject *args, PyObject *kw)
-{
-    if (!((MultiPartInputFileC *)self)->is_opened) {
-	PyErr_SetString(PyExc_OSError, "cannot read from closed file");
-	return NULL;
-    }
-    MultiPartInputFile *file = &((MultiPartInputFileC *)self)->i;
-    
-    int miny = -1;
-    int maxy = -1;
-    int partNum;
-    char *cname;
-    PyObject *pixel_type = NULL;
-    char *keywords[] = { (char*)"cname", (char*)"pixel_type", (char*)"scanLine1", (char*)"scanLine2", NULL };
-    if (!PyArg_ParseTupleAndKeywords(args, kw, "is|Oii", keywords, &partNum, &cname, &pixel_type, &miny, &maxy))
-        return NULL;
-
-    InputPart *part = new InputPart(*file, partNum);
-    const Header& header = file->header(partNum);
-
-    // FIXME: Support TILEDIMAGE in header
-    
-    Box2i dw = header.dataWindow();
-    
-    if (miny == -1)
-        miny = dw.min.y;
-    if (maxy == -1)
-        maxy = dw.max.y;
-
-    if (maxy < miny) {
-        PyErr_SetString(PyExc_TypeError, "scanLine1 must be <= scanLine2");
-        return NULL;
-    }
-    if (miny < dw.min.y) {
-        PyErr_SetString(PyExc_TypeError, "scanLine1 cannot be outside dataWindow");
-        return NULL;
-    }
-    if (maxy > dw.max.y) {
-        PyErr_SetString(PyExc_TypeError, "scanLine2 cannot be outside dataWindow");
-        return NULL;
-    }
-
-    ChannelList channels = header.channels();
-    Channel *channelPtr = channels.findChannel(cname);
-    if (channelPtr == NULL) {
-        return PyErr_Format(PyExc_TypeError, "There is no channel '%s' in part %i", cname, partNum);
-    }
-
-    Imf::PixelType pt;
-    if (pixel_type != NULL) {
-        if (PyObject_GetAttrString(pixel_type,"v") == NULL) {
-            return PyErr_Format(PyExc_TypeError, "Invalid PixelType object");
-        }
-        pt = PixelType(PyLong_AsLong(PyObject_StealAttrString(pixel_type, "v")));
-    } else {
-        pt = channelPtr->type;
-    }
-
-    int xSampling = channelPtr->xSampling;
-    int ySampling = channelPtr->ySampling;
-    int width  = (dw.max.x - dw.min.x + 1) / xSampling;
-    int height = (maxy - miny + 1) / ySampling;
-
-    size_t typeSize = compute_typesize(pt);
-
-    PyObject *r = PyString_FromStringAndSize(NULL, typeSize * width * height);
-
-    char *pixels = PyString_AsString(r);
-
-    try
-    {
-        FrameBuffer frameBuffer;
-        size_t xstride = typeSize;
-        size_t ystride = typeSize * width;
-        frameBuffer.insert(cname,
-                           Slice(pt,
-                                 pixels - dw.min.x * xstride / xSampling - miny * ystride / ySampling,
-                                 xstride,
-                                 ystride,
-                                 xSampling, ySampling,
-                                 0.0));
-        part->setFrameBuffer(frameBuffer);
-        part->readPixels(miny, maxy);
-    }
-    catch (const std::exception &e)
-    {
-       PyErr_SetString(PyExc_OSError, e.what());
-       return NULL;
-    }
-
-    return r;
-}
-
-static PyObject *inchannels_multipart(PyObject *self, PyObject *args, PyObject *kw)
-{
-    if (!((MultiPartInputFileC *)self)->is_opened) {
-	PyErr_SetString(PyExc_OSError, "cannot read from closed file");
-	return NULL;
-    }
-    MultiPartInputFile *file = &((MultiPartInputFileC *)self)->i;
-
-    int miny = -1;
-    int maxy = -1;
-
-    int partNum;
-
-    PyObject *clist;
-    PyObject *pixel_type = NULL;
-    char *keywords[] = { (char*)"cnames", (char*)"pixel_type", (char*)"scanLine1", (char*)"scanLine2", NULL };
-    if (!PyArg_ParseTupleAndKeywords(args, kw, "iO|Oii", keywords, &partNum, &clist, &pixel_type, &miny, &maxy))
-        return NULL;
-
-    InputPart *part = new InputPart(*file, partNum);
-    const Header& header = file->header(partNum);
-
-    Box2i dw = header.dataWindow();
-
-    
-    
-    if (miny == -1)
-        miny = dw.min.y;
-    if (maxy == -1)
-        maxy = dw.max.y;
-
-    if (maxy < miny) {
-        PyErr_SetString(PyExc_TypeError, "scanLine1 must be <= scanLine2");
-        return NULL;
-    }
-    if (miny < dw.min.y) {
-        PyErr_SetString(PyExc_TypeError, "scanLine1 cannot be outside dataWindow");
-        return NULL;
-    }
-    if (maxy > dw.max.y) {
-        PyErr_SetString(PyExc_TypeError, "scanLine2 cannot be outside dataWindow");
-        return NULL;
-    }
-
-    ChannelList channels = header.channels();
-    FrameBuffer frameBuffer;
-
-    int width  = dw.max.x - dw.min.x + 1;
-    int height = maxy - miny + 1;
-
-    PyObject *retval = PyList_New(0);
-    PyObject *iterator = PyObject_GetIter(clist);
-    if (iterator == NULL) {
-      PyErr_SetString(PyExc_TypeError, "Channel list must be iterable");
-      return NULL;
-    }
-    PyObject *item;
-
-    while ((item = PyIter_Next(iterator)) != NULL) {
-      char *cname = PyUTF8_AsSstring(item);
-      Channel *channelPtr = channels.findChannel(cname);
-      if (channelPtr == NULL) {
-          return PyErr_Format(PyExc_TypeError, "There is no channel '%s' in part %i", cname, partNum);
-      }
-
-      Imf::PixelType pt;
-      if (pixel_type != NULL) {
-          pt = PixelType(PyLong_AsLong(PyObject_StealAttrString(pixel_type, "v")));
-      } else {
-          pt = channelPtr->type;
-      }
-
-      // Use pt to compute typeSize
-      size_t typeSize = compute_typesize(pt);
-      if (typeSize < 0) {
-          PyErr_SetString(PyExc_TypeError, "Unknown type");
-          return NULL;
-      }
-
-      size_t xstride = typeSize;
-      size_t ystride = typeSize * width;
-
-      PyObject *r = PyString_FromStringAndSize(NULL, typeSize * width * height);
-      PyList_Append(retval, r);
-      Py_DECREF(r);
-
-      char *pixels = PyString_AsString(r);
-
-      try
-      {
-          frameBuffer.insert(cname,
-                             Slice(pt,
-                                   pixels - dw.min.x * xstride - miny * ystride,
-                                   xstride,
-                                   ystride,
-                                   1,1,
-                                   0.0));
-      }
-      catch (const std::exception &e)
-      {
-         PyErr_SetString(PyExc_OSError, e.what());
-         return NULL;
-      }
-      Py_DECREF(item);
-    }
-    Py_DECREF(iterator);
-    part->setFrameBuffer(frameBuffer);
-    part->readPixels(miny, maxy);
-
-    return retval;
-}
-
-static PyObject *inheader_multipart(PyObject *self, PyObject *args)
-{
-    if (!((MultiPartInputFileC *)self)->is_opened) {
-	PyErr_SetString(PyExc_OSError, "cannot read header from closed file");
-	return NULL;
-    }
-
-    int partNum = -1;
-
-    if (!PyArg_ParseTuple(args, "i", &partNum))
-        return NULL;
-
-    MultiPartInputFile *file = &((MultiPartInputFileC *)self)->i;
-    return dict_from_header(file->header(partNum));
-}
-
-static PyObject *inparts_multipart(PyObject *self, PyObject *args)
-{
-    if (!((MultiPartInputFileC *)self)->is_opened) {
-        PyErr_SetString(PyExc_OSError, "cannot read from closed file");
-        return 0;
-    }
-    MultiPartInputFile *file = &((MultiPartInputFileC *)self)->i;
-    return PyInt_FromLong(file->parts());
-}
-
-static PyObject *partComplete_multipart(PyObject *self, PyObject *args)
-{
-    MultiPartInputFile *file = &((MultiPartInputFileC *)self)->i;
-    int partNum = -1;
-
-    if (!PyArg_ParseTuple(args, "i", &partNum))
-        return NULL;
-
-    return PyBool_FromLong(file->partComplete(partNum));
-}
-
-static PyObject *inclose_multipart(PyObject *self, PyObject *args)
-{
-    MultiPartInputFileC *pc = ((MultiPartInputFileC *)self);
-    if (pc->is_opened) {
-        pc->is_opened = 0;
-        MultiPartInputFile *file = &((MultiPartInputFileC *)self)->i;
-        file->~MultiPartInputFile();
-    }
-    Py_RETURN_NONE;
-}
 
 /* Method tables */
 static PyMethodDef InputFile_methods[] = {
@@ -1241,14 +986,7 @@ static PyMethodDef TiledInputFile_methods[] = {
   {NULL, NULL},
 };
 
-static PyMethodDef MultiPartInputFile_methods[] = {
-  {"header", inheader_multipart, METH_VARARGS},
-  {"channel", (PyCFunction)inchannel_multipart, METH_VARARGS | METH_KEYWORDS},
-  {"parts", inparts_multipart, METH_VARARGS},
-  {"close", inclose_multipart, METH_VARARGS},
-  {"partComplete", partComplete_multipart, METH_VARARGS},
-  {NULL, NULL},
-};
+
 
 static void
 InputFile_dealloc(PyObject *self)
@@ -1270,15 +1008,7 @@ TiledInputFile_dealloc(PyObject *self)
     PyObject_Del(self);
 }
 
-static void
-MultiPartInputFile_dealloc(PyObject *self)
-{
-    MultiPartInputFileC *object = ((MultiPartInputFileC *)self);
-    if (object->fo)
-        Py_DECREF(object->fo);
-    Py_DECREF(inclose_multipart(self, NULL));
-    PyObject_Del(self);
-}
+
 
 static PyObject *
 InputFile_Repr(PyObject *self)
@@ -1300,15 +1030,7 @@ TiledInputFile_Repr(PyObject *self)
     return PyUnicode_FromString(buf);
 }
 
-static PyObject *
-MultiPartInputFile_Repr(PyObject *self)
-{
-    //PyObject *result = NULL;
-    char buf[50];
 
-    sprintf(buf, "MultiPartInputFile represented");
-    return PyUnicode_FromString(buf);
-}
 
 static PyTypeObject InputFile_Type = {
     PyVarObject_HEAD_INIT(&PyType_Type, 0)
@@ -1388,44 +1110,7 @@ static PyTypeObject TiledInputFile_Type = {
     /* the rest are NULLs */
 };
 
-static PyTypeObject MultiPartInputFile_Type = {
-    PyVarObject_HEAD_INIT(&PyType_Type, 0)
-    "OpenEXR.MultiPartInputFile",
-    sizeof(MultiPartInputFileC),
-    0,
-    (destructor)MultiPartInputFile_dealloc,
-    0,
-    0,
-    0,
-    0,
-    (reprfunc)MultiPartInputFile_Repr,
-    0, //&InputFile_as_number,
-    0, //&InputFile_as_sequence,
-    0,
 
-    0,
-    0,
-    0,
-    0,
-    0,
-    
-    0,
-    
-    Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE,
-
-    "OpenEXR MultiPart Input file object",
-
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-
-    MultiPartInputFile_methods
-
-    /* the rest are NULLs */
-};
 
 int makeInputFile(PyObject *self, PyObject *args, PyObject *kwds)
 {
@@ -1533,59 +1218,6 @@ int makeTiledInputFile(PyObject *self, PyObject *args, PyObject *kwds)
     return 0;
 }
 
-int makeMultiPartInputFile(PyObject *self, PyObject *args, PyObject *kwds)
-{
-    MultiPartInputFileC *object = ((MultiPartInputFileC *)self);
-    PyObject *fo;
-    char *filename = NULL;
-    int numthreads = -1;
-    bool reconstructChunkOffsetTable = true;
-
-    if (PyArg_ParseTuple(args, "O|ib:MultiPartInputFile", &fo, &numthreads, &reconstructChunkOffsetTable)) {
-      if (PyString_Check(fo)) {
-          filename = PyString_AsString(fo);
-          object->fo = NULL;
-          object->istream = NULL;
-      } else if (PyUnicode_Check(fo)) {
-          filename = PyUTF8_AsSstring(fo);
-          object->fo = NULL;
-          object->istream = NULL;
-      } else {
-          object->fo = fo;
-          Py_INCREF(fo);
-          object->istream = new C_IStream(fo);
-      }
-    } else {
-       return -1;
-    }
-
-    try
-    {
-      if (numthreads < 0)
-	{
-	  if (filename != NULL)
-	    new(&object->i) MultiPartInputFile(filename, globalThreadCount(), reconstructChunkOffsetTable);
-	  else
-	    new(&object->i) MultiPartInputFile(*object->istream, globalThreadCount(), reconstructChunkOffsetTable);
-	}
-      else
-	{
-	  if (filename != NULL)
-	    new(&object->i) MultiPartInputFile(filename, numthreads, reconstructChunkOffsetTable);
-	  else
-	    new(&object->i) MultiPartInputFile(*object->istream, numthreads, reconstructChunkOffsetTable);
-	}
-    }
-    catch (const std::exception &e)
-    {
-       // Py_DECREF(object);
-       PyErr_SetString(PyExc_OSError, e.what());
-       return -1;
-    }
-    object->is_opened = 1;
-
-    return 0;
-}
 
 
 ////////////////////////////////////////////////////////////////////////
@@ -2067,9 +1699,400 @@ PyObject *_isTiledOpenExrFile(PyObject *self, PyObject *args)
 }
 #endif
 
+#ifdef VERSION_HAS_MULTIPART
+
+////////////////////////////////////////////////////////////////////////
+//    MultiPartInputFile
+////////////////////////////////////////////////////////////////////////
+
+
+typedef struct {
+    PyObject_HEAD
+    MultiPartInputFile i;
+    PyObject *fo;
+    C_IStream *istream;
+    int is_opened;
+} MultiPartInputFileC;
+
+static PyObject *inchannel_multipart(PyObject *self, PyObject *args, PyObject *kw)
+{
+    if (!((MultiPartInputFileC *)self)->is_opened) {
+	PyErr_SetString(PyExc_OSError, "cannot read from closed file");
+	return NULL;
+    }
+    MultiPartInputFile *file = &((MultiPartInputFileC *)self)->i;
+    
+    int miny = -1;
+    int maxy = -1;
+    int partNum;
+    char *cname;
+    PyObject *pixel_type = NULL;
+    char *keywords[] = { (char*)"cname", (char*)"pixel_type", (char*)"scanLine1", (char*)"scanLine2", NULL };
+    if (!PyArg_ParseTupleAndKeywords(args, kw, "is|Oii", keywords, &partNum, &cname, &pixel_type, &miny, &maxy))
+        return NULL;
+
+    InputPart *part = new InputPart(*file, partNum);
+    const Header& header = file->header(partNum);
+
+    // FIXME: Support TILEDIMAGE in header
+    
+    Box2i dw = header.dataWindow();
+    
+    if (miny == -1)
+        miny = dw.min.y;
+    if (maxy == -1)
+        maxy = dw.max.y;
+
+    if (maxy < miny) {
+        PyErr_SetString(PyExc_TypeError, "scanLine1 must be <= scanLine2");
+        return NULL;
+    }
+    if (miny < dw.min.y) {
+        PyErr_SetString(PyExc_TypeError, "scanLine1 cannot be outside dataWindow");
+        return NULL;
+    }
+    if (maxy > dw.max.y) {
+        PyErr_SetString(PyExc_TypeError, "scanLine2 cannot be outside dataWindow");
+        return NULL;
+    }
+
+    ChannelList channels = header.channels();
+    Channel *channelPtr = channels.findChannel(cname);
+    if (channelPtr == NULL) {
+        return PyErr_Format(PyExc_TypeError, "There is no channel '%s' in part %i", cname, partNum);
+    }
+
+    Imf::PixelType pt;
+    if (pixel_type != NULL) {
+        if (PyObject_GetAttrString(pixel_type,"v") == NULL) {
+            return PyErr_Format(PyExc_TypeError, "Invalid PixelType object");
+        }
+        pt = PixelType(PyLong_AsLong(PyObject_StealAttrString(pixel_type, "v")));
+    } else {
+        pt = channelPtr->type;
+    }
+
+    int xSampling = channelPtr->xSampling;
+    int ySampling = channelPtr->ySampling;
+    int width  = (dw.max.x - dw.min.x + 1) / xSampling;
+    int height = (maxy - miny + 1) / ySampling;
+
+    size_t typeSize = compute_typesize(pt);
+
+    PyObject *r = PyString_FromStringAndSize(NULL, typeSize * width * height);
+
+    char *pixels = PyString_AsString(r);
+
+    try
+    {
+        FrameBuffer frameBuffer;
+        size_t xstride = typeSize;
+        size_t ystride = typeSize * width;
+        frameBuffer.insert(cname,
+                           Slice(pt,
+                                 pixels - dw.min.x * xstride / xSampling - miny * ystride / ySampling,
+                                 xstride,
+                                 ystride,
+                                 xSampling, ySampling,
+                                 0.0));
+        part->setFrameBuffer(frameBuffer);
+        part->readPixels(miny, maxy);
+    }
+    catch (const std::exception &e)
+    {
+       PyErr_SetString(PyExc_OSError, e.what());
+       return NULL;
+    }
+
+    return r;
+}
+
+static PyObject *inchannels_multipart(PyObject *self, PyObject *args, PyObject *kw)
+{
+    if (!((MultiPartInputFileC *)self)->is_opened) {
+	PyErr_SetString(PyExc_OSError, "cannot read from closed file");
+	return NULL;
+    }
+    MultiPartInputFile *file = &((MultiPartInputFileC *)self)->i;
+
+    int miny = -1;
+    int maxy = -1;
+
+    int partNum;
+
+    PyObject *clist;
+    PyObject *pixel_type = NULL;
+    char *keywords[] = { (char*)"cnames", (char*)"pixel_type", (char*)"scanLine1", (char*)"scanLine2", NULL };
+    if (!PyArg_ParseTupleAndKeywords(args, kw, "iO|Oii", keywords, &partNum, &clist, &pixel_type, &miny, &maxy))
+        return NULL;
+
+    InputPart *part = new InputPart(*file, partNum);
+    const Header& header = file->header(partNum);
+
+    Box2i dw = header.dataWindow();
+
+    
+    
+    if (miny == -1)
+        miny = dw.min.y;
+    if (maxy == -1)
+        maxy = dw.max.y;
+
+    if (maxy < miny) {
+        PyErr_SetString(PyExc_TypeError, "scanLine1 must be <= scanLine2");
+        return NULL;
+    }
+    if (miny < dw.min.y) {
+        PyErr_SetString(PyExc_TypeError, "scanLine1 cannot be outside dataWindow");
+        return NULL;
+    }
+    if (maxy > dw.max.y) {
+        PyErr_SetString(PyExc_TypeError, "scanLine2 cannot be outside dataWindow");
+        return NULL;
+    }
+
+    ChannelList channels = header.channels();
+    FrameBuffer frameBuffer;
+
+    int width  = dw.max.x - dw.min.x + 1;
+    int height = maxy - miny + 1;
+
+    PyObject *retval = PyList_New(0);
+    PyObject *iterator = PyObject_GetIter(clist);
+    if (iterator == NULL) {
+      PyErr_SetString(PyExc_TypeError, "Channel list must be iterable");
+      return NULL;
+    }
+    PyObject *item;
+
+    while ((item = PyIter_Next(iterator)) != NULL) {
+      char *cname = PyUTF8_AsSstring(item);
+      Channel *channelPtr = channels.findChannel(cname);
+      if (channelPtr == NULL) {
+          return PyErr_Format(PyExc_TypeError, "There is no channel '%s' in part %i", cname, partNum);
+      }
+
+      Imf::PixelType pt;
+      if (pixel_type != NULL) {
+          pt = PixelType(PyLong_AsLong(PyObject_StealAttrString(pixel_type, "v")));
+      } else {
+          pt = channelPtr->type;
+      }
+
+      // Use pt to compute typeSize
+      size_t typeSize = compute_typesize(pt);
+      if (typeSize < 0) {
+          PyErr_SetString(PyExc_TypeError, "Unknown type");
+          return NULL;
+      }
+
+      size_t xstride = typeSize;
+      size_t ystride = typeSize * width;
+
+      PyObject *r = PyString_FromStringAndSize(NULL, typeSize * width * height);
+      PyList_Append(retval, r);
+      Py_DECREF(r);
+
+      char *pixels = PyString_AsString(r);
+
+      try
+      {
+          frameBuffer.insert(cname,
+                             Slice(pt,
+                                   pixels - dw.min.x * xstride - miny * ystride,
+                                   xstride,
+                                   ystride,
+                                   1,1,
+                                   0.0));
+      }
+      catch (const std::exception &e)
+      {
+         PyErr_SetString(PyExc_OSError, e.what());
+         return NULL;
+      }
+      Py_DECREF(item);
+    }
+    Py_DECREF(iterator);
+    part->setFrameBuffer(frameBuffer);
+    part->readPixels(miny, maxy);
+
+    return retval;
+}
+
+static PyObject *inheader_multipart(PyObject *self, PyObject *args)
+{
+    if (!((MultiPartInputFileC *)self)->is_opened) {
+	PyErr_SetString(PyExc_OSError, "cannot read header from closed file");
+	return NULL;
+    }
+
+    int partNum = -1;
+
+    if (!PyArg_ParseTuple(args, "i", &partNum))
+        return NULL;
+
+    MultiPartInputFile *file = &((MultiPartInputFileC *)self)->i;
+    return dict_from_header(file->header(partNum));
+}
+
+static PyObject *inparts_multipart(PyObject *self, PyObject *args)
+{
+    if (!((MultiPartInputFileC *)self)->is_opened) {
+        PyErr_SetString(PyExc_OSError, "cannot read from closed file");
+        return 0;
+    }
+    MultiPartInputFile *file = &((MultiPartInputFileC *)self)->i;
+    return PyInt_FromLong(file->parts());
+}
+
+static PyObject *partComplete_multipart(PyObject *self, PyObject *args)
+{
+    MultiPartInputFile *file = &((MultiPartInputFileC *)self)->i;
+    int partNum = -1;
+
+    if (!PyArg_ParseTuple(args, "i", &partNum))
+        return NULL;
+
+    return PyBool_FromLong(file->partComplete(partNum));
+}
+
+static PyObject *inclose_multipart(PyObject *self, PyObject *args)
+{
+    MultiPartInputFileC *pc = ((MultiPartInputFileC *)self);
+    if (pc->is_opened) {
+        pc->is_opened = 0;
+        MultiPartInputFile *file = &((MultiPartInputFileC *)self)->i;
+        file->~MultiPartInputFile();
+    }
+    Py_RETURN_NONE;
+}
+
+static void
+MultiPartInputFile_dealloc(PyObject *self)
+{
+    MultiPartInputFileC *object = ((MultiPartInputFileC *)self);
+    if (object->fo)
+        Py_DECREF(object->fo);
+    Py_DECREF(inclose_multipart(self, NULL));
+    PyObject_Del(self);
+}
+
+static PyObject *
+MultiPartInputFile_Repr(PyObject *self)
+{
+    //PyObject *result = NULL;
+    char buf[50];
+
+    sprintf(buf, "MultiPartInputFile represented");
+    return PyUnicode_FromString(buf);
+}
+
+int makeMultiPartInputFile(PyObject *self, PyObject *args, PyObject *kwds)
+{
+    MultiPartInputFileC *object = ((MultiPartInputFileC *)self);
+    PyObject *fo;
+    char *filename = NULL;
+    int numthreads = -1;
+    bool reconstructChunkOffsetTable = true;
+
+    if (PyArg_ParseTuple(args, "O|ib:MultiPartInputFile", &fo, &numthreads, &reconstructChunkOffsetTable)) {
+      if (PyString_Check(fo)) {
+          filename = PyString_AsString(fo);
+          object->fo = NULL;
+          object->istream = NULL;
+      } else if (PyUnicode_Check(fo)) {
+          filename = PyUTF8_AsSstring(fo);
+          object->fo = NULL;
+          object->istream = NULL;
+      } else {
+          object->fo = fo;
+          Py_INCREF(fo);
+          object->istream = new C_IStream(fo);
+      }
+    } else {
+       return -1;
+    }
+
+    try
+    {
+      if (numthreads < 0)
+	{
+	  if (filename != NULL)
+	    new(&object->i) MultiPartInputFile(filename, globalThreadCount(), reconstructChunkOffsetTable);
+	  else
+	    new(&object->i) MultiPartInputFile(*object->istream, globalThreadCount(), reconstructChunkOffsetTable);
+	}
+      else
+	{
+	  if (filename != NULL)
+	    new(&object->i) MultiPartInputFile(filename, numthreads, reconstructChunkOffsetTable);
+	  else
+	    new(&object->i) MultiPartInputFile(*object->istream, numthreads, reconstructChunkOffsetTable);
+	}
+    }
+    catch (const std::exception &e)
+    {
+       // Py_DECREF(object);
+       PyErr_SetString(PyExc_OSError, e.what());
+       return -1;
+    }
+    object->is_opened = 1;
+
+    return 0;
+}
+
+static PyMethodDef MultiPartInputFile_methods[] = {
+  {"header", inheader_multipart, METH_VARARGS},
+  {"channel", (PyCFunction)inchannel_multipart, METH_VARARGS | METH_KEYWORDS},
+  {"parts", inparts_multipart, METH_VARARGS},
+  {"close", inclose_multipart, METH_VARARGS},
+  {"partComplete", partComplete_multipart, METH_VARARGS},
+  {NULL, NULL},
+};
+
+static PyTypeObject MultiPartInputFile_Type = {
+    PyVarObject_HEAD_INIT(&PyType_Type, 0)
+    "OpenEXR.MultiPartInputFile",
+    sizeof(MultiPartInputFileC),
+    0,
+    (destructor)MultiPartInputFile_dealloc,
+    0,
+    0,
+    0,
+    0,
+    (reprfunc)MultiPartInputFile_Repr,
+    0, //&InputFile_as_number,
+    0, //&InputFile_as_sequence,
+    0,
+
+    0,
+    0,
+    0,
+    0,
+    0,
+    
+    0,
+    
+    Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE,
+
+    "OpenEXR MultiPart Input file object",
+
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+
+    MultiPartInputFile_methods
+
+    /* the rest are NULLs */
+};
+
 ////////////////////////////////////////////////////////////////////////
 //    MultiPartOutputFile
 ////////////////////////////////////////////////////////////////////////
+
 
 typedef struct {
     PyObject_HEAD
@@ -2348,6 +2371,7 @@ int makeMultiPartOutputFile(PyObject *self, PyObject *args, PyObject *kwds)
     object->is_opened = 1;
     return 0;
 }
+#endif
 
 ////////////////////////////////////////////////////////////////////////
 
@@ -2376,29 +2400,38 @@ MOD_INIT(OpenEXR)
     /* initialize module variables/constants */
     InputFile_Type.tp_new = PyType_GenericNew;
     TiledInputFile_Type.tp_new = PyType_GenericNew;
-    MultiPartInputFile_Type.tp_new = PyType_GenericNew;
     InputFile_Type.tp_init = makeInputFile;
     TiledInputFile_Type.tp_init = makeTiledInputFile;
-    MultiPartInputFile_Type.tp_init = makeMultiPartInputFile;
     OutputFile_Type.tp_new = PyType_GenericNew;
     OutputFile_Type.tp_init = makeOutputFile;
-    MultiPartOutputFile_Type.tp_new = PyType_GenericNew;
-    MultiPartOutputFile_Type.tp_init = makeMultiPartOutputFile;
+
     if (PyType_Ready(&InputFile_Type) != 0)
         return MOD_ERROR_VAL;
     if (PyType_Ready(&TiledInputFile_Type) != 0)
         return MOD_ERROR_VAL;
-    if (PyType_Ready(&MultiPartInputFile_Type) != 0)
-        return MOD_ERROR_VAL;
+
     if (PyType_Ready(&OutputFile_Type) != 0)
+        return MOD_ERROR_VAL;
+
+#ifdef VERSION_HAS_MULTIPART
+    MultiPartInputFile_Type.tp_new = PyType_GenericNew;
+    MultiPartInputFile_Type.tp_init = makeMultiPartInputFile;
+    MultiPartOutputFile_Type.tp_new = PyType_GenericNew;
+    MultiPartOutputFile_Type.tp_init = makeMultiPartOutputFile;
+    if (PyType_Ready(&MultiPartInputFile_Type) != 0)
         return MOD_ERROR_VAL;
     if (PyType_Ready(&MultiPartOutputFile_Type) != 0)
         return MOD_ERROR_VAL;
+#endif
+
     PyModule_AddObject(m, "InputFile", (PyObject *)&InputFile_Type);
     PyModule_AddObject(m, "TiledInputFile", (PyObject *)&TiledInputFile_Type);
-    PyModule_AddObject(m, "MultiPartInputFile", (PyObject *)&MultiPartInputFile_Type);
     PyModule_AddObject(m, "OutputFile", (PyObject *)&OutputFile_Type);
+#ifdef VERSION_HAS_MULTIPART
+    PyModule_AddObject(m, "MultiPartInputFile", (PyObject *)&MultiPartInputFile_Type);
     PyModule_AddObject(m, "MultiPartOutputFile", (PyObject *)&MultiPartOutputFile_Type);
+#endif
+    
 
 #if PYTHON_API_VERSION >= 1007
     OpenEXR_error = PyErr_NewException((char*)"OpenEXR.error", NULL, NULL);
