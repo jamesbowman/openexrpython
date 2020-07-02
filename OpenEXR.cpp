@@ -63,12 +63,26 @@ typedef int Py_ssize_t;
 #include <ImfVecAttribute.h>
 #include <ImfVersion.h>
 
+#include <OpenEXRConfig.h>
+
+#if OPENEXR_VERSION_MAJOR>=2
+#define VERSION_HAS_MULTIPART
+#endif
+
 #include <ImfRationalAttribute.h>
 #include <ImfRational.h>
 #include <ImfKeyCodeAttribute.h>
 #include <ImfKeyCode.h>
 #include <ImfTimeCodeAttribute.h>
 #include <ImfTimeCode.h>
+
+#ifdef VERSION_HAS_MULTIPART
+#include <ImfPartType.h>
+#include <ImfMultiPartInputFile.h>
+#include <ImfMultiPartOutputFile.h>
+#include <ImfInputPart.h>
+#include <ImfOutputPart.h>
+#endif
 
 #include <algorithm>
 #include <iostream>
@@ -949,6 +963,8 @@ static PyObject *isComplete(PyObject *self, PyObject *args)
     return PyBool_FromLong(file->isComplete());
 }
 
+
+
 /* Method tables */
 static PyMethodDef InputFile_methods[] = {
   {"header", inheader, METH_VARARGS},
@@ -970,6 +986,8 @@ static PyMethodDef TiledInputFile_methods[] = {
   {NULL, NULL},
 };
 
+
+
 static void
 InputFile_dealloc(PyObject *self)
 {
@@ -990,6 +1008,8 @@ TiledInputFile_dealloc(PyObject *self)
     PyObject_Del(self);
 }
 
+
+
 static PyObject *
 InputFile_Repr(PyObject *self)
 {
@@ -1009,6 +1029,8 @@ TiledInputFile_Repr(PyObject *self)
     sprintf(buf, "TiledInputFile represented");
     return PyUnicode_FromString(buf);
 }
+
+
 
 static PyTypeObject InputFile_Type = {
     PyVarObject_HEAD_INIT(&PyType_Type, 0)
@@ -1087,6 +1109,8 @@ static PyTypeObject TiledInputFile_Type = {
 
     /* the rest are NULLs */
 };
+
+
 
 int makeInputFile(PyObject *self, PyObject *args, PyObject *kwds)
 {
@@ -1195,9 +1219,166 @@ int makeTiledInputFile(PyObject *self, PyObject *args, PyObject *kwds)
 }
 
 
+
+////////////////////////////////////////////////////////////////////////
+//    Functions shared with OutputFile and MultiPartOutputFile
+////////////////////////////////////////////////////////////////////////
+
+
+Header makeHeaderFromDict(PyObject *header_dict)
+{
+    PyObject *pB2i = PyObject_GetAttrString(pModuleImath, "Box2i");
+    PyObject *pB2f = PyObject_GetAttrString(pModuleImath, "Box2f");
+    PyObject *pV2f = PyObject_GetAttrString(pModuleImath, "V2f");
+    PyObject *pLO = PyObject_GetAttrString(pModuleImath, "LineOrder");
+    PyObject *pCOMP = PyObject_GetAttrString(pModuleImath, "Compression");
+    PyObject *pPI = PyObject_GetAttrString(pModuleImath, "PreviewImage");
+    PyObject *pCH = PyObject_GetAttrString(pModuleImath, "Chromaticities");
+    PyObject *pTD = PyObject_GetAttrString(pModuleImath, "TileDescription");
+    PyObject *pRA = PyObject_GetAttrString(pModuleImath, "Rational");
+    PyObject *pKA = PyObject_GetAttrString(pModuleImath, "KeyCode");
+    PyObject *pTC = PyObject_GetAttrString(pModuleImath, "TimeCode");
+
+    Header header(64, 64);
+    Py_ssize_t pos = 0;
+    PyObject *key, *value;
+
+    while (PyDict_Next(header_dict, &pos, &key, &value)) {
+        const char *ks = PyUTF8_AsSstring(key);
+        if (PyFloat_Check(value)) {
+            header.insert(ks, FloatAttribute(PyFloat_AsDouble(value)));
+        }
+        else if (PyInt_Check(value)) {
+            header.insert(ks, IntAttribute(PyInt_AsLong(value)));
+        } else if (PyBytes_Check(value)) {
+            header.insert(ks, StringAttribute(PyString_AsString(value)));
+        } else if (PyObject_IsInstance(value, pB2i)) {
+            Box2i box(V2i(PyLong_AsLong(PyObject_StealAttrString(PyObject_StealAttrString(value, "min"), "x")),
+                        PyLong_AsLong(PyObject_StealAttrString(PyObject_StealAttrString(value, "min"), "y"))),
+                    V2i(PyLong_AsLong(PyObject_StealAttrString(PyObject_StealAttrString(value, "max"), "x")),
+                        PyLong_AsLong(PyObject_StealAttrString(PyObject_StealAttrString(value, "max"), "y"))));
+            header.insert(ks, Box2iAttribute(box));
+        } else if (PyObject_IsInstance(value, pB2f)) {
+            Box2f box(V2f(PyFloat_AsDouble(PyObject_StealAttrString(PyObject_StealAttrString(value, "min"), "x")),
+                        PyFloat_AsDouble(PyObject_StealAttrString(PyObject_StealAttrString(value, "min"), "y"))),
+                    V2f(PyFloat_AsDouble(PyObject_StealAttrString(PyObject_StealAttrString(value, "max"), "x")),
+                        PyFloat_AsDouble(PyObject_StealAttrString(PyObject_StealAttrString(value, "max"), "y"))));
+            header.insert(ks, Box2fAttribute(box));
+        } else if (PyObject_IsInstance(value, pPI)) {
+            PreviewImage pi(PyLong_AsLong(PyObject_StealAttrString(value, "width")),
+                            PyLong_AsLong(PyObject_StealAttrString(value, "height")),
+                            (Imf::PreviewRgba *)PyString_AsString(PyObject_StealAttrString(value, "pixels")));
+            header.insert(ks, PreviewImageAttribute(pi));
+        } else if (PyObject_IsInstance(value, pV2f)) {
+            V2f v(PyFloat_AsDouble(PyObject_StealAttrString(value, "x")), PyFloat_AsDouble(PyObject_StealAttrString(value, "y")));
+
+            header.insert(ks, V2fAttribute(v));
+        } else if (PyObject_IsInstance(value, pLO)) {
+            LineOrder i = (LineOrder)PyInt_AsLong(PyObject_StealAttrString(value, "v"));
+
+            header.insert(ks, LineOrderAttribute(i));
+        } else if (PyObject_IsInstance(value, pTC)) {
+            TimeCode v(PyLong_AsLong(PyObject_StealAttrString(value,"hours")),
+                    PyLong_AsLong(PyObject_StealAttrString(value,"minutes")),
+                    PyLong_AsLong(PyObject_StealAttrString(value,"seconds")),
+                    PyLong_AsLong(PyObject_StealAttrString(value,"frame")),
+                    PyLong_AsLong(PyObject_StealAttrString(value,"dropFrame")),
+                    PyLong_AsLong(PyObject_StealAttrString(value,"colorFrame")),
+                    PyLong_AsLong(PyObject_StealAttrString(value,"fieldPhase")),
+                    PyLong_AsLong(PyObject_StealAttrString(value,"bgf0")),
+                    PyLong_AsLong(PyObject_StealAttrString(value,"bgf1")),
+                    PyLong_AsLong(PyObject_StealAttrString(value,"bgf2")),
+                    PyLong_AsLong(PyObject_StealAttrString(value,"binaryGroup1")),
+                    PyLong_AsLong(PyObject_StealAttrString(value,"binaryGroup2")),
+                    PyLong_AsLong(PyObject_StealAttrString(value,"binaryGroup3")),
+                    PyLong_AsLong(PyObject_StealAttrString(value,"binaryGroup4")),
+                    PyLong_AsLong(PyObject_StealAttrString(value,"binaryGroup5")),
+                    PyLong_AsLong(PyObject_StealAttrString(value,"binaryGroup6")),
+                    PyLong_AsLong(PyObject_StealAttrString(value,"binaryGroup7")),
+                    PyLong_AsLong(PyObject_StealAttrString(value,"binaryGroup8")));
+                                
+            header.insert(ks, TimeCodeAttribute(v));
+        
+        } else if (PyObject_IsInstance(value, pKA)) {
+                KeyCode v(PyLong_AsLong(PyObject_StealAttrString(value, "filmMfcCode")),
+                        PyLong_AsLong(PyObject_StealAttrString(value, "filmType")),
+                        PyLong_AsLong(PyObject_StealAttrString(value, "prefix")),
+                        PyLong_AsLong(PyObject_StealAttrString(value, "count")),
+                        PyLong_AsLong(PyObject_StealAttrString(value, "perfOffset")),
+                        PyLong_AsLong(PyObject_StealAttrString(value, "perfsPerFrame")),
+                        PyLong_AsLong(PyObject_StealAttrString(value, "perfsPerCount")));
+                header.insert(ks, KeyCodeAttribute(v));
+        } else if (PyObject_IsInstance(value, pRA)) {
+            Rational v(PyLong_AsLong(PyObject_StealAttrString(value, "n")), PyLong_AsLong(PyObject_StealAttrString(value, "d")));       
+            header.insert(ks, RationalAttribute(v));
+        } else if (PyObject_IsInstance(value, pCOMP)) {
+            Compression i = (Compression)PyInt_AsLong(PyObject_StealAttrString(value, "v"));
+
+            header.insert(ks, CompressionAttribute(i));
+        } else if (PyObject_IsInstance(value, pCH)) {
+            V2f red(PyFloat_AsDouble(PyObject_StealAttrString(PyObject_StealAttrString(value, "red"), "x")),
+                    PyFloat_AsDouble(PyObject_StealAttrString(PyObject_StealAttrString(value, "red"), "y")));
+            V2f green(PyFloat_AsDouble(PyObject_StealAttrString(PyObject_StealAttrString(value, "green"), "x")),
+                    PyFloat_AsDouble(PyObject_StealAttrString(PyObject_StealAttrString(value, "green"), "y")));
+            V2f blue(PyFloat_AsDouble(PyObject_StealAttrString(PyObject_StealAttrString(value, "blue"), "x")),
+                    PyFloat_AsDouble(PyObject_StealAttrString(PyObject_StealAttrString(value, "blue"), "y")));
+            V2f white(PyFloat_AsDouble(PyObject_StealAttrString(PyObject_StealAttrString(value, "white"), "x")),
+                    PyFloat_AsDouble(PyObject_StealAttrString(PyObject_StealAttrString(value, "white"), "y")));
+            Chromaticities c(red, green, blue, white);
+            header.insert(ks, ChromaticitiesAttribute(c));
+        } else if (PyObject_IsInstance(value, pTD)) {
+            TileDescription td(PyInt_AsLong(PyObject_StealAttrString(value, "xSize")),
+                            PyInt_AsLong(PyObject_StealAttrString(value, "ySize")),
+                            (Imf::LevelMode)PyInt_AsLong(PyObject_StealAttrString(PyObject_StealAttrString(value, "mode"), "v")),
+                            (Imf::LevelRoundingMode)PyInt_AsLong(PyObject_StealAttrString(PyObject_StealAttrString(value, "roundingMode"), "v"))
+                            );
+            header.insert(ks, TileDescriptionAttribute(td));
+        } else if (PyDict_Check(value)) {
+            PyObject *key2, *value2;
+            Py_ssize_t pos2 = 0;
+
+            while (PyDict_Next(value, &pos2, &key2, &value2)) {
+                if (0)
+                    printf("%s -> %s\n",
+                        PyString_AsString(key2),
+                        PyString_AsString(PyObject_Str(PyObject_Type(value2))));
+                header.channels().insert(PyUTF8_AsSstring(key2),
+                                        Channel(PixelType(PyLong_AsLong(PyObject_StealAttrString(PyObject_StealAttrString(value2, "type"), "v"))),
+                                                PyLong_AsLong(PyObject_StealAttrString(value2, "xSampling")),
+                                                PyLong_AsLong(PyObject_StealAttrString(value2, "ySampling"))));
+            }
+#ifdef INCLUDED_IMF_STRINGVECTOR_ATTRIBUTE_H
+        } else if (PyList_Check(value)) {
+            StringVector sv(PyList_Size(value));
+            for (size_t i = 0; i < sv.size(); i++)
+                sv[i] = PyUTF8_AsSstring(PyList_GetItem(value, i));
+            header.insert(ks, StringVectorAttribute(sv));
+#endif
+        } else {
+            printf("XXX - unknown attribute: %s\n", PyUTF8_AsSstring(PyObject_Str(key)));
+        }
+    }
+
+    Py_DECREF(pB2i);
+    Py_DECREF(pB2f);
+    Py_DECREF(pV2f);
+    Py_DECREF(pLO);
+    Py_DECREF(pCOMP);
+    Py_DECREF(pPI);
+    Py_DECREF(pCH);
+    Py_DECREF(pTD);
+    Py_DECREF(pRA);
+    Py_DECREF(pKA);
+    Py_DECREF(pTC);
+
+
+    return header;
+}
+
 ////////////////////////////////////////////////////////////////////////
 //    OutputFile
 ////////////////////////////////////////////////////////////////////////
+
 
 typedef struct {
     PyObject_HEAD
@@ -1423,150 +1604,7 @@ int makeOutputFile(PyObject *self, PyObject *args, PyObject *kwds)
        return -1;
     }
 
-    Header header(64, 64);
-
-    PyObject *pB2i = PyObject_GetAttrString(pModuleImath, "Box2i");
-    PyObject *pB2f = PyObject_GetAttrString(pModuleImath, "Box2f");
-    PyObject *pV2f = PyObject_GetAttrString(pModuleImath, "V2f");
-    PyObject *pLO = PyObject_GetAttrString(pModuleImath, "LineOrder");
-    PyObject *pCOMP = PyObject_GetAttrString(pModuleImath, "Compression");
-    PyObject *pPI = PyObject_GetAttrString(pModuleImath, "PreviewImage");
-    PyObject *pCH = PyObject_GetAttrString(pModuleImath, "Chromaticities");
-    PyObject *pTD = PyObject_GetAttrString(pModuleImath, "TileDescription");
-    PyObject *pRA = PyObject_GetAttrString(pModuleImath, "Rational");
-    PyObject *pKA = PyObject_GetAttrString(pModuleImath, "KeyCode");
-    PyObject *pTC = PyObject_GetAttrString(pModuleImath, "TimeCode");
-
-    Py_ssize_t pos = 0;
-    PyObject *key, *value;
-
-    while (PyDict_Next(header_dict, &pos, &key, &value)) {
-        const char *ks = PyUTF8_AsSstring(key);
-        if (PyFloat_Check(value)) {
-            header.insert(ks, FloatAttribute(PyFloat_AsDouble(value)));
-        }
-        else if (PyInt_Check(value)) {
-            header.insert(ks, IntAttribute(PyInt_AsLong(value)));
-        } else if (PyBytes_Check(value)) {
-            header.insert(ks, StringAttribute(PyString_AsString(value)));
-        } else if (PyObject_IsInstance(value, pB2i)) {
-            Box2i box(V2i(PyLong_AsLong(PyObject_StealAttrString(PyObject_StealAttrString(value, "min"), "x")),
-                          PyLong_AsLong(PyObject_StealAttrString(PyObject_StealAttrString(value, "min"), "y"))),
-                      V2i(PyLong_AsLong(PyObject_StealAttrString(PyObject_StealAttrString(value, "max"), "x")),
-                          PyLong_AsLong(PyObject_StealAttrString(PyObject_StealAttrString(value, "max"), "y"))));
-            header.insert(ks, Box2iAttribute(box));
-        } else if (PyObject_IsInstance(value, pB2f)) {
-            Box2f box(V2f(PyFloat_AsDouble(PyObject_StealAttrString(PyObject_StealAttrString(value, "min"), "x")),
-                          PyFloat_AsDouble(PyObject_StealAttrString(PyObject_StealAttrString(value, "min"), "y"))),
-                      V2f(PyFloat_AsDouble(PyObject_StealAttrString(PyObject_StealAttrString(value, "max"), "x")),
-                          PyFloat_AsDouble(PyObject_StealAttrString(PyObject_StealAttrString(value, "max"), "y"))));
-            header.insert(ks, Box2fAttribute(box));
-        } else if (PyObject_IsInstance(value, pPI)) {
-            PreviewImage pi(PyLong_AsLong(PyObject_StealAttrString(value, "width")),
-                            PyLong_AsLong(PyObject_StealAttrString(value, "height")),
-                            (Imf::PreviewRgba *)PyString_AsString(PyObject_StealAttrString(value, "pixels")));
-            header.insert(ks, PreviewImageAttribute(pi));
-        } else if (PyObject_IsInstance(value, pV2f)) {
-            V2f v(PyFloat_AsDouble(PyObject_StealAttrString(value, "x")), PyFloat_AsDouble(PyObject_StealAttrString(value, "y")));
-
-            header.insert(ks, V2fAttribute(v));
-        } else if (PyObject_IsInstance(value, pLO)) {
-            LineOrder i = (LineOrder)PyInt_AsLong(PyObject_StealAttrString(value, "v"));
-
-            header.insert(ks, LineOrderAttribute(i));
-        } else if (PyObject_IsInstance(value, pTC)) {
-            TimeCode v(PyLong_AsLong(PyObject_StealAttrString(value,"hours")),
-                       PyLong_AsLong(PyObject_StealAttrString(value,"minutes")),
-                       PyLong_AsLong(PyObject_StealAttrString(value,"seconds")),
-                       PyLong_AsLong(PyObject_StealAttrString(value,"frame")),
-                       PyLong_AsLong(PyObject_StealAttrString(value,"dropFrame")),
-                       PyLong_AsLong(PyObject_StealAttrString(value,"colorFrame")),
-                       PyLong_AsLong(PyObject_StealAttrString(value,"fieldPhase")),
-                       PyLong_AsLong(PyObject_StealAttrString(value,"bgf0")),
-                       PyLong_AsLong(PyObject_StealAttrString(value,"bgf1")),
-                       PyLong_AsLong(PyObject_StealAttrString(value,"bgf2")),
-                       PyLong_AsLong(PyObject_StealAttrString(value,"binaryGroup1")),
-                       PyLong_AsLong(PyObject_StealAttrString(value,"binaryGroup2")),
-                       PyLong_AsLong(PyObject_StealAttrString(value,"binaryGroup3")),
-                       PyLong_AsLong(PyObject_StealAttrString(value,"binaryGroup4")),
-                       PyLong_AsLong(PyObject_StealAttrString(value,"binaryGroup5")),
-                       PyLong_AsLong(PyObject_StealAttrString(value,"binaryGroup6")),
-                       PyLong_AsLong(PyObject_StealAttrString(value,"binaryGroup7")),
-                       PyLong_AsLong(PyObject_StealAttrString(value,"binaryGroup8")));
-                                
-            header.insert(ks, TimeCodeAttribute(v));
-        
-        } else if (PyObject_IsInstance(value, pKA)) {
-                KeyCode v(PyLong_AsLong(PyObject_StealAttrString(value, "filmMfcCode")),
-                          PyLong_AsLong(PyObject_StealAttrString(value, "filmType")),
-                          PyLong_AsLong(PyObject_StealAttrString(value, "prefix")),
-                          PyLong_AsLong(PyObject_StealAttrString(value, "count")),
-                          PyLong_AsLong(PyObject_StealAttrString(value, "perfOffset")),
-                          PyLong_AsLong(PyObject_StealAttrString(value, "perfsPerFrame")),
-                          PyLong_AsLong(PyObject_StealAttrString(value, "perfsPerCount")));
-                header.insert(ks, KeyCodeAttribute(v));
-        } else if (PyObject_IsInstance(value, pRA)) {
-            Rational v(PyLong_AsLong(PyObject_StealAttrString(value, "n")), PyLong_AsLong(PyObject_StealAttrString(value, "d")));       
-            header.insert(ks, RationalAttribute(v));
-        } else if (PyObject_IsInstance(value, pCOMP)) {
-            Compression i = (Compression)PyInt_AsLong(PyObject_StealAttrString(value, "v"));
-
-            header.insert(ks, CompressionAttribute(i));
-        } else if (PyObject_IsInstance(value, pCH)) {
-            V2f red(PyFloat_AsDouble(PyObject_StealAttrString(PyObject_StealAttrString(value, "red"), "x")),
-                    PyFloat_AsDouble(PyObject_StealAttrString(PyObject_StealAttrString(value, "red"), "y")));
-            V2f green(PyFloat_AsDouble(PyObject_StealAttrString(PyObject_StealAttrString(value, "green"), "x")),
-                      PyFloat_AsDouble(PyObject_StealAttrString(PyObject_StealAttrString(value, "green"), "y")));
-            V2f blue(PyFloat_AsDouble(PyObject_StealAttrString(PyObject_StealAttrString(value, "blue"), "x")),
-                     PyFloat_AsDouble(PyObject_StealAttrString(PyObject_StealAttrString(value, "blue"), "y")));
-            V2f white(PyFloat_AsDouble(PyObject_StealAttrString(PyObject_StealAttrString(value, "white"), "x")),
-                      PyFloat_AsDouble(PyObject_StealAttrString(PyObject_StealAttrString(value, "white"), "y")));
-            Chromaticities c(red, green, blue, white);
-            header.insert(ks, ChromaticitiesAttribute(c));
-        } else if (PyObject_IsInstance(value, pTD)) {
-            TileDescription td(PyInt_AsLong(PyObject_StealAttrString(value, "xSize")),
-                               PyInt_AsLong(PyObject_StealAttrString(value, "ySize")),
-                               (Imf::LevelMode)PyInt_AsLong(PyObject_StealAttrString(PyObject_StealAttrString(value, "mode"), "v")),
-                               (Imf::LevelRoundingMode)PyInt_AsLong(PyObject_StealAttrString(PyObject_StealAttrString(value, "roundingMode"), "v"))
-                               );
-            header.insert(ks, TileDescriptionAttribute(td));
-        } else if (PyDict_Check(value)) {
-            PyObject *key2, *value2;
-            Py_ssize_t pos2 = 0;
-
-            while (PyDict_Next(value, &pos2, &key2, &value2)) {
-                if (0)
-                    printf("%s -> %s\n",
-                        PyString_AsString(key2),
-                        PyString_AsString(PyObject_Str(PyObject_Type(value2))));
-                header.channels().insert(PyUTF8_AsSstring(key2),
-                                         Channel(PixelType(PyLong_AsLong(PyObject_StealAttrString(PyObject_StealAttrString(value2, "type"), "v"))),
-                                                 PyLong_AsLong(PyObject_StealAttrString(value2, "xSampling")),
-                                                 PyLong_AsLong(PyObject_StealAttrString(value2, "ySampling"))));
-            }
-#ifdef INCLUDED_IMF_STRINGVECTOR_ATTRIBUTE_H
-        } else if (PyList_Check(value)) {
-            StringVector sv(PyList_Size(value));
-            for (size_t i = 0; i < sv.size(); i++)
-                sv[i] = PyUTF8_AsSstring(PyList_GetItem(value, i));
-            header.insert(ks, StringVectorAttribute(sv));
-#endif
-        } else {
-            printf("XXX - unknown attribute: %s\n", PyUTF8_AsSstring(PyObject_Str(key)));
-        }
-    }
-
-    Py_DECREF(pB2i);
-    Py_DECREF(pB2f);
-    Py_DECREF(pV2f);
-    Py_DECREF(pLO);
-    Py_DECREF(pCOMP);
-    Py_DECREF(pPI);
-    Py_DECREF(pCH);
-    Py_DECREF(pTD);
-    Py_DECREF(pRA);
-    Py_DECREF(pKA);
-    Py_DECREF(pTC);
+    Header header = makeHeaderFromDict(header_dict);
 
     try
     {
@@ -1616,6 +1654,7 @@ PyObject *get_global_thread_count(PyObject *self, PyObject *args)
   return PyLong_FromLong(globalThreadCount());
 }
 
+
 ////////////////////////////////////////////////////////////////////////
 
 PyObject *makeHeader(PyObject *self, PyObject *args)
@@ -1660,6 +1699,680 @@ PyObject *_isTiledOpenExrFile(PyObject *self, PyObject *args)
 }
 #endif
 
+#ifdef VERSION_HAS_MULTIPART
+
+////////////////////////////////////////////////////////////////////////
+//    MultiPartInputFile
+////////////////////////////////////////////////////////////////////////
+
+
+typedef struct {
+    PyObject_HEAD
+    MultiPartInputFile i;
+    PyObject *fo;
+    C_IStream *istream;
+    int is_opened;
+} MultiPartInputFileC;
+
+static PyObject *inchannel_multipart(PyObject *self, PyObject *args, PyObject *kw)
+{
+    if (!((MultiPartInputFileC *)self)->is_opened) {
+	PyErr_SetString(PyExc_OSError, "cannot read from closed file");
+	return NULL;
+    }
+    MultiPartInputFile *file = &((MultiPartInputFileC *)self)->i;
+    
+    int miny = -1;
+    int maxy = -1;
+    int partNum;
+    char *cname;
+    PyObject *pixel_type = NULL;
+    char *keywords[] = { (char*)"cname", (char*)"pixel_type", (char*)"scanLine1", (char*)"scanLine2", NULL };
+    if (!PyArg_ParseTupleAndKeywords(args, kw, "is|Oii", keywords, &partNum, &cname, &pixel_type, &miny, &maxy))
+        return NULL;
+
+    InputPart *part = new InputPart(*file, partNum);
+    const Header& header = file->header(partNum);
+
+    // FIXME: Support TILEDIMAGE in header
+    
+    Box2i dw = header.dataWindow();
+    
+    if (miny == -1)
+        miny = dw.min.y;
+    if (maxy == -1)
+        maxy = dw.max.y;
+
+    if (maxy < miny) {
+        PyErr_SetString(PyExc_TypeError, "scanLine1 must be <= scanLine2");
+        return NULL;
+    }
+    if (miny < dw.min.y) {
+        PyErr_SetString(PyExc_TypeError, "scanLine1 cannot be outside dataWindow");
+        return NULL;
+    }
+    if (maxy > dw.max.y) {
+        PyErr_SetString(PyExc_TypeError, "scanLine2 cannot be outside dataWindow");
+        return NULL;
+    }
+
+    ChannelList channels = header.channels();
+    Channel *channelPtr = channels.findChannel(cname);
+    if (channelPtr == NULL) {
+        return PyErr_Format(PyExc_TypeError, "There is no channel '%s' in part %i", cname, partNum);
+    }
+
+    Imf::PixelType pt;
+    if (pixel_type != NULL) {
+        if (PyObject_GetAttrString(pixel_type,"v") == NULL) {
+            return PyErr_Format(PyExc_TypeError, "Invalid PixelType object");
+        }
+        pt = PixelType(PyLong_AsLong(PyObject_StealAttrString(pixel_type, "v")));
+    } else {
+        pt = channelPtr->type;
+    }
+
+    int xSampling = channelPtr->xSampling;
+    int ySampling = channelPtr->ySampling;
+    int width  = (dw.max.x - dw.min.x + 1) / xSampling;
+    int height = (maxy - miny + 1) / ySampling;
+
+    size_t typeSize = compute_typesize(pt);
+
+    PyObject *r = PyString_FromStringAndSize(NULL, typeSize * width * height);
+
+    char *pixels = PyString_AsString(r);
+
+    try
+    {
+        FrameBuffer frameBuffer;
+        size_t xstride = typeSize;
+        size_t ystride = typeSize * width;
+        frameBuffer.insert(cname,
+                           Slice(pt,
+                                 pixels - dw.min.x * xstride / xSampling - miny * ystride / ySampling,
+                                 xstride,
+                                 ystride,
+                                 xSampling, ySampling,
+                                 0.0));
+        part->setFrameBuffer(frameBuffer);
+        part->readPixels(miny, maxy);
+    }
+    catch (const std::exception &e)
+    {
+       PyErr_SetString(PyExc_OSError, e.what());
+       return NULL;
+    }
+
+    return r;
+}
+
+static PyObject *inchannels_multipart(PyObject *self, PyObject *args, PyObject *kw)
+{
+    if (!((MultiPartInputFileC *)self)->is_opened) {
+	PyErr_SetString(PyExc_OSError, "cannot read from closed file");
+	return NULL;
+    }
+    MultiPartInputFile *file = &((MultiPartInputFileC *)self)->i;
+
+    int miny = -1;
+    int maxy = -1;
+
+    int partNum;
+
+    PyObject *clist;
+    PyObject *pixel_type = NULL;
+    char *keywords[] = { (char*)"cnames", (char*)"pixel_type", (char*)"scanLine1", (char*)"scanLine2", NULL };
+    if (!PyArg_ParseTupleAndKeywords(args, kw, "iO|Oii", keywords, &partNum, &clist, &pixel_type, &miny, &maxy))
+        return NULL;
+
+    InputPart *part = new InputPart(*file, partNum);
+    const Header& header = file->header(partNum);
+
+    Box2i dw = header.dataWindow();
+
+    
+    
+    if (miny == -1)
+        miny = dw.min.y;
+    if (maxy == -1)
+        maxy = dw.max.y;
+
+    if (maxy < miny) {
+        PyErr_SetString(PyExc_TypeError, "scanLine1 must be <= scanLine2");
+        return NULL;
+    }
+    if (miny < dw.min.y) {
+        PyErr_SetString(PyExc_TypeError, "scanLine1 cannot be outside dataWindow");
+        return NULL;
+    }
+    if (maxy > dw.max.y) {
+        PyErr_SetString(PyExc_TypeError, "scanLine2 cannot be outside dataWindow");
+        return NULL;
+    }
+
+    ChannelList channels = header.channels();
+    FrameBuffer frameBuffer;
+
+    int width  = dw.max.x - dw.min.x + 1;
+    int height = maxy - miny + 1;
+
+    PyObject *retval = PyList_New(0);
+    PyObject *iterator = PyObject_GetIter(clist);
+    if (iterator == NULL) {
+      PyErr_SetString(PyExc_TypeError, "Channel list must be iterable");
+      return NULL;
+    }
+    PyObject *item;
+
+    while ((item = PyIter_Next(iterator)) != NULL) {
+      char *cname = PyUTF8_AsSstring(item);
+      Channel *channelPtr = channels.findChannel(cname);
+      if (channelPtr == NULL) {
+          return PyErr_Format(PyExc_TypeError, "There is no channel '%s' in part %i", cname, partNum);
+      }
+
+      Imf::PixelType pt;
+      if (pixel_type != NULL) {
+          pt = PixelType(PyLong_AsLong(PyObject_StealAttrString(pixel_type, "v")));
+      } else {
+          pt = channelPtr->type;
+      }
+
+      // Use pt to compute typeSize
+      size_t typeSize = compute_typesize(pt);
+      if (typeSize < 0) {
+          PyErr_SetString(PyExc_TypeError, "Unknown type");
+          return NULL;
+      }
+
+      size_t xstride = typeSize;
+      size_t ystride = typeSize * width;
+
+      PyObject *r = PyString_FromStringAndSize(NULL, typeSize * width * height);
+      PyList_Append(retval, r);
+      Py_DECREF(r);
+
+      char *pixels = PyString_AsString(r);
+
+      try
+      {
+          frameBuffer.insert(cname,
+                             Slice(pt,
+                                   pixels - dw.min.x * xstride - miny * ystride,
+                                   xstride,
+                                   ystride,
+                                   1,1,
+                                   0.0));
+      }
+      catch (const std::exception &e)
+      {
+         PyErr_SetString(PyExc_OSError, e.what());
+         return NULL;
+      }
+      Py_DECREF(item);
+    }
+    Py_DECREF(iterator);
+    part->setFrameBuffer(frameBuffer);
+    part->readPixels(miny, maxy);
+
+    return retval;
+}
+
+static PyObject *inheader_multipart(PyObject *self, PyObject *args)
+{
+    if (!((MultiPartInputFileC *)self)->is_opened) {
+	PyErr_SetString(PyExc_OSError, "cannot read header from closed file");
+	return NULL;
+    }
+
+    int partNum = -1;
+
+    if (!PyArg_ParseTuple(args, "i", &partNum))
+        return NULL;
+
+    MultiPartInputFile *file = &((MultiPartInputFileC *)self)->i;
+    return dict_from_header(file->header(partNum));
+}
+
+static PyObject *inparts_multipart(PyObject *self, PyObject *args)
+{
+    if (!((MultiPartInputFileC *)self)->is_opened) {
+        PyErr_SetString(PyExc_OSError, "cannot read from closed file");
+        return 0;
+    }
+    MultiPartInputFile *file = &((MultiPartInputFileC *)self)->i;
+    return PyInt_FromLong(file->parts());
+}
+
+static PyObject *partComplete_multipart(PyObject *self, PyObject *args)
+{
+    MultiPartInputFile *file = &((MultiPartInputFileC *)self)->i;
+    int partNum = -1;
+
+    if (!PyArg_ParseTuple(args, "i", &partNum))
+        return NULL;
+
+    return PyBool_FromLong(file->partComplete(partNum));
+}
+
+static PyObject *inclose_multipart(PyObject *self, PyObject *args)
+{
+    MultiPartInputFileC *pc = ((MultiPartInputFileC *)self);
+    if (pc->is_opened) {
+        pc->is_opened = 0;
+        MultiPartInputFile *file = &((MultiPartInputFileC *)self)->i;
+        file->~MultiPartInputFile();
+    }
+    Py_RETURN_NONE;
+}
+
+static void
+MultiPartInputFile_dealloc(PyObject *self)
+{
+    MultiPartInputFileC *object = ((MultiPartInputFileC *)self);
+    if (object->fo)
+        Py_DECREF(object->fo);
+    Py_DECREF(inclose_multipart(self, NULL));
+    PyObject_Del(self);
+}
+
+static PyObject *
+MultiPartInputFile_Repr(PyObject *self)
+{
+    //PyObject *result = NULL;
+    char buf[50];
+
+    sprintf(buf, "MultiPartInputFile represented");
+    return PyUnicode_FromString(buf);
+}
+
+int makeMultiPartInputFile(PyObject *self, PyObject *args, PyObject *kwds)
+{
+    MultiPartInputFileC *object = ((MultiPartInputFileC *)self);
+    PyObject *fo;
+    char *filename = NULL;
+    int numthreads = -1;
+    bool reconstructChunkOffsetTable = true;
+
+    if (PyArg_ParseTuple(args, "O|ib:MultiPartInputFile", &fo, &numthreads, &reconstructChunkOffsetTable)) {
+      if (PyString_Check(fo)) {
+          filename = PyString_AsString(fo);
+          object->fo = NULL;
+          object->istream = NULL;
+      } else if (PyUnicode_Check(fo)) {
+          filename = PyUTF8_AsSstring(fo);
+          object->fo = NULL;
+          object->istream = NULL;
+      } else {
+          object->fo = fo;
+          Py_INCREF(fo);
+          object->istream = new C_IStream(fo);
+      }
+    } else {
+       return -1;
+    }
+
+    try
+    {
+      if (numthreads < 0)
+	{
+	  if (filename != NULL)
+	    new(&object->i) MultiPartInputFile(filename, globalThreadCount(), reconstructChunkOffsetTable);
+	  else
+	    new(&object->i) MultiPartInputFile(*object->istream, globalThreadCount(), reconstructChunkOffsetTable);
+	}
+      else
+	{
+	  if (filename != NULL)
+	    new(&object->i) MultiPartInputFile(filename, numthreads, reconstructChunkOffsetTable);
+	  else
+	    new(&object->i) MultiPartInputFile(*object->istream, numthreads, reconstructChunkOffsetTable);
+	}
+    }
+    catch (const std::exception &e)
+    {
+       // Py_DECREF(object);
+       PyErr_SetString(PyExc_OSError, e.what());
+       return -1;
+    }
+    object->is_opened = 1;
+
+    return 0;
+}
+
+static PyMethodDef MultiPartInputFile_methods[] = {
+  {"header", inheader_multipart, METH_VARARGS},
+  {"channel", (PyCFunction)inchannel_multipart, METH_VARARGS | METH_KEYWORDS},
+  {"parts", inparts_multipart, METH_VARARGS},
+  {"close", inclose_multipart, METH_VARARGS},
+  {"partComplete", partComplete_multipart, METH_VARARGS},
+  {NULL, NULL},
+};
+
+static PyTypeObject MultiPartInputFile_Type = {
+    PyVarObject_HEAD_INIT(&PyType_Type, 0)
+    "OpenEXR.MultiPartInputFile",
+    sizeof(MultiPartInputFileC),
+    0,
+    (destructor)MultiPartInputFile_dealloc,
+    0,
+    0,
+    0,
+    0,
+    (reprfunc)MultiPartInputFile_Repr,
+    0, //&InputFile_as_number,
+    0, //&InputFile_as_sequence,
+    0,
+
+    0,
+    0,
+    0,
+    0,
+    0,
+    
+    0,
+    
+    Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE,
+
+    "OpenEXR MultiPart Input file object",
+
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+
+    MultiPartInputFile_methods
+
+    /* the rest are NULLs */
+};
+
+////////////////////////////////////////////////////////////////////////
+//    MultiPartOutputFile
+////////////////////////////////////////////////////////////////////////
+
+
+typedef struct {
+    PyObject_HEAD
+    MultiPartOutputFile o;
+    C_OStream *ostream;
+    PyObject *fo;
+    int is_opened;
+} MultiPartOutputFileC;
+
+// static void releaseviews(std::vector<Py_buffer> &views)
+// {
+//     for (size_t i=0; i < views.size(); i++)
+//         PyBuffer_Release(&views[i]);
+// }
+
+static PyObject *multioutwrite(PyObject *self, PyObject *args)
+{
+    if (!((MultiPartOutputFileC *)self)->is_opened) {
+	PyErr_SetString(PyExc_OSError, "cannot write to closed file");
+	return NULL;
+    }
+    MultiPartOutputFile *file = &((MultiPartOutputFileC *)self)->o;
+
+    
+    int height = -1;
+    int partNum;
+    PyObject *pixeldata;
+    
+        
+    if (!PyArg_ParseTuple(args, "iO!|i:writePixels", &partNum, &PyDict_Type, &pixeldata, &height))
+       return NULL;
+    
+    Header header = file->header(partNum);
+
+    // long height = PyLong_AsLong(PyTuple_GetItem(args, 1));
+    Box2i dw = header.dataWindow();
+    int width = dw.max.x - dw.min.x + 1;
+    if(height == -1)
+        height = dw.max.y - dw.min.y + 1;
+
+    FrameBuffer frameBuffer;
+    std::vector<Py_buffer> views;
+    OutputPart* part = new OutputPart(*file, partNum);
+
+    ssize_t currentScanLine = part->currentScanLine();
+    if (header.lineOrder() == DECREASING_Y) {
+        // With DECREASING_Y, currentScanLine() returns the maximum Y value of
+        // the window on the first call, and decrements at each scan line.
+        // We have to adjust to point to the correct address in the client buffer.
+        currentScanLine = dw.max.y - currentScanLine + dw.min.y;
+    }
+
+    const ChannelList &channels = header.channels();
+    for (ChannelList::ConstIterator i = channels.begin();
+         i != channels.end();
+         ++i) {
+        PyObject *channel_spec = PyDict_GetItem(pixeldata, PyUnicode_FromString(i.name()));
+        if (channel_spec != NULL) {
+            Imf::PixelType pt = i.channel().type;
+	    int typeSize = (int) compute_typesize(pt);
+            if (typeSize < 0) typeSize = 4;
+            int xSampling = i.channel().xSampling;
+            int ySampling = i.channel().ySampling;
+            int yStride = typeSize * width;
+            char *srcPixels;
+            ssize_t expectedSize = (height * yStride) / (xSampling * ySampling);
+            Py_ssize_t bufferSize;
+
+            if (PyString_Check(channel_spec)) {
+                bufferSize = PyString_Size(channel_spec);
+                srcPixels = PyString_AsString(channel_spec);
+            } else if (PyObject_CheckBuffer(channel_spec)) {
+                Py_buffer view;
+                if (PyObject_GetBuffer(channel_spec, &view, PyBUF_CONTIG_RO) != 0) {
+                    releaseviews(views);
+                    PyErr_Format(PyExc_TypeError, "Unsupported buffer structure for channel '%s'", i.name());
+                    return NULL;
+                }
+                views.push_back(view);
+                bufferSize = view.len;
+                srcPixels = (char*)view.buf;
+            } else {
+                releaseviews(views);
+                PyErr_Format(PyExc_TypeError, "Data for channel '%s' must be a string or support buffer protocol", i.name());
+                return NULL;
+            }
+
+            if (bufferSize != expectedSize) {
+                releaseviews(views);
+                PyErr_Format(PyExc_TypeError, "Data for channel '%s' should have size %zu but got %zu", i.name(), expectedSize, bufferSize);
+                return NULL;
+            }
+
+            frameBuffer.insert(i.name(),                        // name
+                Slice(pt,                                       // type
+                      srcPixels - dw.min.x * typeSize / xSampling - currentScanLine * yStride / ySampling,                         // base
+                      typeSize,                                 // xStride
+                      yStride,                                  // yStride
+                      xSampling, ySampling));                   // subsampling
+        }
+    }
+
+    try
+    {
+        part->setFrameBuffer(frameBuffer);
+        part->writePixels(height);
+    }
+    catch (const std::exception &e)
+    {
+        releaseviews(views);
+        PyErr_SetString(PyExc_OSError, e.what());
+        return NULL;
+    }
+    releaseviews(views);
+    Py_RETURN_NONE;
+}
+
+// static PyObject *outcurrentscanline(PyObject *self, PyObject *args)
+// {
+//     if (!((OutputFileC *)self)->is_opened) {
+// 	PyErr_SetString(PyExc_OSError, "cannot write to closed file");
+// 	return NULL;
+//     }
+//     OutputFile *file = &((OutputFileC *)self)->o;
+//     return PyLong_FromLong(file->currentScanLine());
+// }
+
+static PyObject *multioutclose(PyObject *self, PyObject *args)
+{
+    MultiPartOutputFileC *oc = (MultiPartOutputFileC *)self;
+    if (oc->is_opened) {
+      oc->is_opened = 0;
+      MultiPartOutputFile *file = &oc->o;
+      file->~MultiPartOutputFile();
+    }
+    Py_RETURN_NONE;
+}
+
+/* Method table */
+static PyMethodDef MultiPartOutputFile_methods[] = {
+  {"writePixels", multioutwrite, METH_VARARGS},
+ // {"currentScanLine", outcurrentscanline, METH_VARARGS},
+  {"close", multioutclose, METH_VARARGS},
+  {NULL, NULL},
+};
+
+static void
+MultiPartOutputFile_dealloc(PyObject *self)
+{
+    MultiPartOutputFileC *object = ((MultiPartOutputFileC *)self);
+    if (object->fo)
+        Py_DECREF(object->fo);
+    Py_DECREF(multioutclose(self, NULL));
+    PyObject_Del(self);
+}
+
+static PyObject *
+MultiPartOutputFile_Repr(PyObject *self)
+{
+    //PyObject *result = NULL;
+    char buf[50];
+
+    sprintf(buf, "MultiPartOutputFile represented");
+    return PyUnicode_FromString(buf);
+}
+
+static PyTypeObject MultiPartOutputFile_Type = {
+    PyVarObject_HEAD_INIT(&PyType_Type, 0)
+    "OpenEXR.MultiPartOutputFile",
+    sizeof(MultiPartOutputFileC),
+    0,
+    (destructor)MultiPartOutputFile_dealloc,
+    0,
+    0,
+    0,
+    0,
+    (reprfunc)MultiPartOutputFile_Repr,
+    0, 
+    0, 
+    0,
+
+    0,
+    0,
+    0,
+    0,
+    0,
+    
+    0,
+    
+    Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE,
+
+    "OpenEXR Multi-Part Output file object",
+
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+
+    MultiPartOutputFile_methods
+
+    /* the rest are NULLs */
+};
+
+int makeMultiPartOutputFile(PyObject *self, PyObject *args, PyObject *kwds)
+{
+    PyObject *fo;
+    PyObject *headers_list;
+
+    char *filename = NULL;
+
+    MultiPartOutputFileC *object = (MultiPartOutputFileC *)self;
+    
+    int numthreads = -1;
+
+    if (PyArg_ParseTuple(args, "OO!|i:MultiPartOutputFile", &fo, &PyList_Type, &headers_list, &numthreads)) {
+      if (PyString_Check(fo)) {
+          filename = PyString_AsString(fo);
+          object->fo = NULL;
+          object->ostream = NULL;
+      } else if (PyUnicode_Check(fo)) {
+          filename = PyUTF8_AsSstring(fo);
+          object->fo = NULL;
+          object->ostream = NULL;
+      } else {
+          object->fo = fo;
+          Py_INCREF(fo);
+          object->ostream = new C_OStream(fo);
+      }
+    } else {
+       return -1;
+    }
+
+
+
+
+    Py_ssize_t numParts = PyList_Size(headers_list);
+    vector<Header> headers;
+
+    for(Py_ssize_t partNum = 0; partNum < numParts; partNum++){
+
+        PyObject *header_dict = PyList_GetItem(headers_list, partNum);
+
+        Header header = makeHeaderFromDict(header_dict);
+
+        header.setType(SCANLINEIMAGE); // FIXME: Need to support TILEDIMAGE
+        
+        headers.push_back(header);
+    
+    }
+
+
+    try
+    {
+      if (numthreads < 0)
+	{
+	  if (filename != NULL)
+	    new(&object->o) MultiPartOutputFile(filename, &headers[0],headers.size());
+	  else
+	    new(&object->o) MultiPartOutputFile(*object->ostream, &headers[0],headers.size());
+	}
+      else
+	{
+	  if (filename != NULL)
+	    new(&object->o) MultiPartOutputFile(filename, &headers[0],headers.size(), false, numthreads);
+	  else
+	    new(&object->o) MultiPartOutputFile(*object->ostream, &headers[0],headers.size(), false, numthreads);
+	}
+    }
+    catch (const std::exception &e)
+    {
+        PyErr_SetString(PyExc_OSError, e.what());
+        return -1;
+    }
+    object->is_opened = 1;
+    return 0;
+}
+#endif
+
 ////////////////////////////////////////////////////////////////////////
 
 static PyMethodDef methods[] = {
@@ -1691,15 +2404,34 @@ MOD_INIT(OpenEXR)
     TiledInputFile_Type.tp_init = makeTiledInputFile;
     OutputFile_Type.tp_new = PyType_GenericNew;
     OutputFile_Type.tp_init = makeOutputFile;
+
     if (PyType_Ready(&InputFile_Type) != 0)
         return MOD_ERROR_VAL;
     if (PyType_Ready(&TiledInputFile_Type) != 0)
         return MOD_ERROR_VAL;
+
     if (PyType_Ready(&OutputFile_Type) != 0)
         return MOD_ERROR_VAL;
+
+#ifdef VERSION_HAS_MULTIPART
+    MultiPartInputFile_Type.tp_new = PyType_GenericNew;
+    MultiPartInputFile_Type.tp_init = makeMultiPartInputFile;
+    MultiPartOutputFile_Type.tp_new = PyType_GenericNew;
+    MultiPartOutputFile_Type.tp_init = makeMultiPartOutputFile;
+    if (PyType_Ready(&MultiPartInputFile_Type) != 0)
+        return MOD_ERROR_VAL;
+    if (PyType_Ready(&MultiPartOutputFile_Type) != 0)
+        return MOD_ERROR_VAL;
+#endif
+
     PyModule_AddObject(m, "InputFile", (PyObject *)&InputFile_Type);
     PyModule_AddObject(m, "TiledInputFile", (PyObject *)&TiledInputFile_Type);
     PyModule_AddObject(m, "OutputFile", (PyObject *)&OutputFile_Type);
+#ifdef VERSION_HAS_MULTIPART
+    PyModule_AddObject(m, "MultiPartInputFile", (PyObject *)&MultiPartInputFile_Type);
+    PyModule_AddObject(m, "MultiPartOutputFile", (PyObject *)&MultiPartOutputFile_Type);
+#endif
+    
 
 #if PYTHON_API_VERSION >= 1007
     OpenEXR_error = PyErr_NewException((char*)"OpenEXR.error", NULL, NULL);
@@ -1720,3 +2452,4 @@ MOD_INIT(OpenEXR)
 
     return MOD_SUCCESS_VAL(m);
 }
+

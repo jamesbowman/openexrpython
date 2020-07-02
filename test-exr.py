@@ -291,6 +291,65 @@ class TestDirected(unittest.TestCase):
     def test_version(self):
         self.assertTrue(OpenEXR.__version__ != None)
         self.assertTrue(OpenEXR.OPENEXR_VERSION_HEX != None)
+    
+    def test_multipart_in(self):
+        infile = OpenEXR.MultiPartInputFile("Beachball_Multipart.exr")
+        self.assertEqual(10, infile.parts())
+        for i in range(10):
+            h = infile.header(i)
+            for ch in h['channels'].keys():
+                data = infile.channel(i, ch)
+        
+
+    def test_multipart_out(self):
+        
+        data = [array('f', [ 0.7 ] * (100 * 100)).tobytes(), array('f', [ 0.1 ] * (100 * 100)).tobytes()]
+
+        headers = []
+        for i in range(2):
+            h = OpenEXR.Header(100,100)
+            h['channels'] = {'Z': Imath.Channel(Imath.PixelType(Imath.PixelType.FLOAT))}
+            # Multipart headers require a name
+            h['name'] = 'image_{0:02d}'.format(i).encode(encoding='ascii') # Header strings must be ASCII (Should probably support unicode...)
+            print(type(h['name']))
+            headers.append(h)
+
+        x = OpenEXR.MultiPartOutputFile('out-multipart.exr', headers)
+        
+        for i in range(2):
+            pixels = {'Z': data[i]}
+            x.writePixels(i, pixels)
+
+        x.close()
+    
+    def test_write_chunk_multipart(self):
+
+        def load_red_mp(filename):
+            oexr = OpenEXR.MultiPartInputFile(filename)
+            return oexr.channel(0, 'R')
+
+            """ Write the pixels to two images, first as a single call,
+        then as multiple calls.  Verify that the images are identical.
+        """
+        for w,h,step in [(100, 10, 1), (64,48,6), (1, 100, 2), (640, 480, 4)]:
+            data = array('f', [ random.random() for x in range(w * h) ]).tobytes()
+
+            hdr = OpenEXR.Header(w,h)
+            x = OpenEXR.MultiPartOutputFile("out0.exr", [hdr])
+            x.writePixels(0, {'R': data, 'G': data, 'B': data})
+            x.close()
+
+            hdr = OpenEXR.Header(w,h)
+            x = OpenEXR.MultiPartOutputFile("out1.exr", [hdr])
+            for y in range(0, h, step):
+                subdata = data[y * w * 4:(y+step) * w * 4]
+                x.writePixels(0, {'R': subdata, 'G': subdata, 'B': subdata}, step)
+            x.close()
+
+            oexr0 = load_red_mp("out0.exr")
+            oexr1 = load_red_mp("out1.exr")
+            self.assertTrue(oexr0 == oexr1)
+    
 
 if __name__ == '__main__':
     if 1:
