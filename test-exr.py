@@ -293,6 +293,8 @@ class TestDirected(unittest.TestCase):
         self.assertTrue(OpenEXR.OPENEXR_VERSION_HEX != None)
     
     def test_multipart_in(self):
+        if not hasattr(OpenEXR, 'MultiPartInputFile'):
+            return
         infile = OpenEXR.MultiPartInputFile("Beachball_Multipart.exr")
         self.assertEqual(10, infile.parts())
         for i in range(10):
@@ -303,6 +305,8 @@ class TestDirected(unittest.TestCase):
 
     def test_multipart_out(self):
         
+        if not hasattr(OpenEXR, 'MultiPartOutputFile'):
+            return
         data = [array('f', [ 0.7 ] * (100 * 100)).tobytes(), array('f', [ 0.1 ] * (100 * 100)).tobytes()]
 
         headers = []
@@ -324,6 +328,8 @@ class TestDirected(unittest.TestCase):
     
     def test_write_chunk_multipart(self):
 
+        if not hasattr(OpenEXR, 'MultiPartInputFile'):
+            return
         def load_red_mp(filename):
             oexr = OpenEXR.MultiPartInputFile(filename)
             return oexr.channel(0, 'R')
