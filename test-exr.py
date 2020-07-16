@@ -2,9 +2,12 @@ from __future__ import print_function
 import sys
 import unittest
 import random
+import numpy as np
 from array import array
 
-if sys.version_info[0] < 3:
+PYTHON2 = (sys.version_info < (3, 0))
+
+if PYTHON2:
     class ArrayProxy(array):
         def tobytes(self):
             return self.tostring()
@@ -356,6 +359,56 @@ class TestDirected(unittest.TestCase):
             oexr1 = load_red_mp("out1.exr")
             self.assertTrue(oexr0 == oexr1)
     
+    def test_header_bytes(self):
+        ctype = Imath.Channel(Imath.PixelType(Imath.PixelType.HALF))
+
+        target = 'test_exr.exr'
+        data = {}
+        chans = {}
+        channels = list('RGBA')
+        for c in channels:
+            chan = c.upper()
+            data[chan] = bytes(10 * 5 * 2)
+            chans[chan] = ctype
+
+        header = OpenEXR.Header(10, 5)
+        header['channels'] = chans
+        header['foo1'] = b'bar'
+        header['foo2'] = 'bar'.encode('ascii')
+        header['foo3'] = 'bar'.encode('utf-8')
+
+        file_ = OpenEXR.OutputFile(target, header)
+        file_.writePixels(data)
+        file_.close()
+
+        # Read them back and confirm they are all b'bar'
+
+        infile = OpenEXR.InputFile(target)
+        h = infile.header()
+        infile.close()
+        self.assertEqual(h["foo1"], b'bar')
+        self.assertEqual(h["foo2"], b'bar')
+        self.assertEqual(h["foo3"], b'bar')
+
+    def test_header_string(self):
+        if PYTHON2:
+            return
+        ctype = Imath.Channel(Imath.PixelType(Imath.PixelType.HALF))
+
+        target = 'test_exr.exr'
+        data = {}
+        chans = {}
+        channels = list('RGBA')
+        for c in channels:
+            chan = c.upper()
+            data[chan] = bytes(10 * 5 * 2)
+            chans[chan] = ctype
+
+        header = OpenEXR.Header(10, 5)
+        header['channels'] = chans
+        header['foo'] = 'bar'
+
+        self.assertRaises(TypeError, OpenEXR.OutputFile, (target, header))
 
 if __name__ == '__main__':
     if 1:

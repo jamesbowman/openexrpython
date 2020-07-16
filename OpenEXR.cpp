@@ -1225,7 +1225,7 @@ int makeTiledInputFile(PyObject *self, PyObject *args, PyObject *kwds)
 ////////////////////////////////////////////////////////////////////////
 
 
-Header makeHeaderFromDict(PyObject *header_dict)
+Header makeHeaderFromDict(int &ok, PyObject *header_dict)
 {
     PyObject *pB2i = PyObject_GetAttrString(pModuleImath, "Box2i");
     PyObject *pB2f = PyObject_GetAttrString(pModuleImath, "Box2f");
@@ -1239,6 +1239,7 @@ Header makeHeaderFromDict(PyObject *header_dict)
     PyObject *pKA = PyObject_GetAttrString(pModuleImath, "KeyCode");
     PyObject *pTC = PyObject_GetAttrString(pModuleImath, "TimeCode");
 
+    ok = 1;
     Header header(64, 64);
     Py_ssize_t pos = 0;
     PyObject *key, *value;
@@ -1354,6 +1355,9 @@ Header makeHeaderFromDict(PyObject *header_dict)
                 sv[i] = PyUTF8_AsSstring(PyList_GetItem(value, i));
             header.insert(ks, StringVectorAttribute(sv));
 #endif
+        } else if (PyUnicode_Check(value)) {
+            PyErr_Format(PyExc_TypeError, "Cannot use unicode type for attribute '%s', use 'bytes' instead", PyUTF8_AsSstring(PyObject_Str(key)));
+            ok = 0;
         } else {
             printf("XXX - unknown attribute: %s\n", PyUTF8_AsSstring(PyObject_Str(key)));
         }
@@ -1601,10 +1605,13 @@ int makeOutputFile(PyObject *self, PyObject *args, PyObject *kwds)
           object->ostream = new C_OStream(fo);
       }
     } else {
-       return -1;
+      return -1;
     }
 
-    Header header = makeHeaderFromDict(header_dict);
+    int ok;
+    Header header = makeHeaderFromDict(ok, header_dict);
+    if (!ok)
+      return -1;
 
     try
     {
@@ -2324,7 +2331,7 @@ int makeMultiPartOutputFile(PyObject *self, PyObject *args, PyObject *kwds)
           object->ostream = new C_OStream(fo);
       }
     } else {
-       return -1;
+      return -1;
     }
 
 
@@ -2337,7 +2344,10 @@ int makeMultiPartOutputFile(PyObject *self, PyObject *args, PyObject *kwds)
 
         PyObject *header_dict = PyList_GetItem(headers_list, partNum);
 
-        Header header = makeHeaderFromDict(header_dict);
+        int ok;
+        Header header = makeHeaderFromDict(ok, header_dict);
+        if (!ok)
+          return -1;
 
         header.setType(SCANLINEIMAGE); // FIXME: Need to support TILEDIMAGE
         
