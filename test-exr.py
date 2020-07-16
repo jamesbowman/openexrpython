@@ -368,7 +368,7 @@ class TestDirected(unittest.TestCase):
         channels = list('RGBA')
         for c in channels:
             chan = c.upper()
-            data[chan] = bytes(10 * 5 * 2)
+            data[chan] = b'X' * (10 * 5 * 2)
             chans[chan] = ctype
 
         header = OpenEXR.Header(10, 5)
@@ -401,7 +401,7 @@ class TestDirected(unittest.TestCase):
         channels = list('RGBA')
         for c in channels:
             chan = c.upper()
-            data[chan] = bytes(10 * 5 * 2)
+            data[chan] = b'X' * (10 * 5 * 2)
             chans[chan] = ctype
 
         header = OpenEXR.Header(10, 5)
