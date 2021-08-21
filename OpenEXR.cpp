@@ -121,8 +121,8 @@ class C_IStream: public IStream
     C_IStream (PyObject *fo):
         IStream(""), _fo(fo) {}
     virtual bool    read (char c[], int n);
-    virtual Int64   tellg ();
-    virtual void    seekg (Int64 pos);
+    virtual uint64_t   tellg ();
+    virtual void    seekg (uint64_t pos);
     virtual void    clear ();
     virtual const char*     fileName() const;
   private:
@@ -148,7 +148,7 @@ const char* C_IStream::fileName() const
 }
 
 
-Int64
+uint64_t
 C_IStream::tellg ()
 {
     PyObject *rv = PyObject_CallMethod(_fo, (char*)"tell", NULL);
@@ -157,14 +157,14 @@ C_IStream::tellg ()
       long long t = PyLong_AsLong(lrv);
       Py_DECREF(lrv);
       Py_DECREF(rv);
-      return (Int64)t;
+      return (uint64_t)t;
     } else {
       throw Iex::InputExc("tell failed");
     }
 }
 
 void
-C_IStream::seekg (Int64 pos)
+C_IStream::seekg (uint64_t pos)
 {
     PyObject *data = PyObject_CallMethod(_fo, (char*)"seek", (char*)"(L)", pos);
     if (data != NULL) {
@@ -186,8 +186,8 @@ class C_OStream: public OStream
   public:
     C_OStream (PyObject *fo): OStream(""), _fo(fo) {}
     virtual void    write (const char *c, int n);
-    virtual Int64   tellp ();
-    virtual void    seekp (Int64 pos);
+    virtual uint64_t   tellp ();
+    virtual void    seekp (uint64_t pos);
     virtual void    clear ();
     virtual const char*     fileName() const;
   private:
@@ -212,7 +212,7 @@ const char* C_OStream::fileName() const
 }
 
 
-Int64
+uint64_t
 C_OStream::tellp ()
 {
     PyObject *rv = PyObject_CallMethod(_fo, (char*)"tell", NULL);
@@ -221,14 +221,14 @@ C_OStream::tellp ()
       long long t = PyLong_AsLong(lrv);
       Py_DECREF(lrv);
       Py_DECREF(rv);
-      return (Int64)t;
+      return (uint64_t)t;
     } else {
       throw Iex::InputExc("tell failed");
     }
 }
 
 void
-C_OStream::seekp (Int64 pos)
+C_OStream::seekp (uint64_t pos)
 {
     PyObject *data = PyObject_CallMethod(_fo, (char*)"seek", (char*)"(L)", pos);
     if (data != NULL) {
@@ -344,7 +344,7 @@ static PyObject *channel_tiled(PyObject *self, PyObject *args, PyObject *kw)
 
     try
     {
-        FrameBuffer frameBuffer;
+        Imf::FrameBuffer frameBuffer;
         size_t xstride = typeSize;
         size_t ystride = typeSize * width;
         frameBuffer.insert(cname,
@@ -403,7 +403,7 @@ static PyObject *channels_tiled(PyObject *self, PyObject *args, PyObject *kw)
     }
 
     ChannelList channels = file->header().channels();
-    FrameBuffer frameBuffer;
+    Imf::FrameBuffer frameBuffer;
 
     int width = std::min((tile_maxx+1)*tileXSize, dw.max.x - dw.min.x + 1) - tile_minx * tileXSize;
     int height = std::min((tile_maxy+1)*tileYSize, dw.max.y - dw.min.y + 1) - tile_miny * tileYSize;
@@ -619,7 +619,7 @@ static PyObject *channel(PyObject *self, PyObject *args, PyObject *kw)
 
     try
     {
-        FrameBuffer frameBuffer;
+        Imf::FrameBuffer frameBuffer;
         size_t xstride = typeSize;
         size_t ystride = typeSize * width;
         frameBuffer.insert(cname,
@@ -675,7 +675,7 @@ static PyObject *channels(PyObject *self, PyObject *args, PyObject *kw)
     }
 
     ChannelList channels = file->header().channels();
-    FrameBuffer frameBuffer;
+    Imf::FrameBuffer frameBuffer;
 
     int width  = dw.max.x - dw.min.x + 1;
     int height = maxy - miny + 1;
@@ -1423,7 +1423,7 @@ static PyObject *outwrite(PyObject *self, PyObject *args)
         currentScanLine = dw.max.y - currentScanLine + dw.min.y;
     }
 
-    FrameBuffer frameBuffer;
+    Imf::FrameBuffer frameBuffer;
     std::vector<Py_buffer> views;
 
     const ChannelList &channels = file->header().channels();
@@ -1792,7 +1792,7 @@ static PyObject *inchannel_multipart(PyObject *self, PyObject *args, PyObject *k
 
     try
     {
-        FrameBuffer frameBuffer;
+        Imf::FrameBuffer frameBuffer;
         size_t xstride = typeSize;
         size_t ystride = typeSize * width;
         frameBuffer.insert(cname,
@@ -1859,7 +1859,7 @@ static PyObject *inchannels_multipart(PyObject *self, PyObject *args, PyObject *
     }
 
     ChannelList channels = header.channels();
-    FrameBuffer frameBuffer;
+    Imf::FrameBuffer frameBuffer;
 
     int width  = dw.max.x - dw.min.x + 1;
     int height = maxy - miny + 1;
@@ -2140,7 +2140,7 @@ static PyObject *multioutwrite(PyObject *self, PyObject *args)
     if(height == -1)
         height = dw.max.y - dw.min.y + 1;
 
-    FrameBuffer frameBuffer;
+    Imf::FrameBuffer frameBuffer;
     std::vector<Py_buffer> views;
     OutputPart* part = new OutputPart(*file, partNum);
 
