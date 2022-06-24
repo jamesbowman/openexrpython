@@ -3,6 +3,8 @@ OpenEXR bindings for Python
 
 [![Build Status](https://travis-ci.org/jamesbowman/openexrpython.svg?branch=master)](https://travis-ci.org/jamesbowman/openexrpython)
 
+This code is no longer maintained -- see https://github.com/sanguinariojoe/pip-openexr
+
 See homepage at http://www.excamera.com/sphinx/articles-openexr.html
 
 ## Requirements
